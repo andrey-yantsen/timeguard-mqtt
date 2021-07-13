@@ -1,4 +1,4 @@
-# timeguard-supplymaster-python
+# timeguard-mqtt
 
 This Python module provides an open-source implementation of the device API used by the Timeguard's NTTWIFI and FSTWIFI devices.
 
