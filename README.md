@@ -40,6 +40,32 @@ iptables -t nat -A PREROUTING -s 192.168.1.48/32 -d 31.193.128.139 -p udp -m udp
 iptables -t nat -A POSTROUTING -s 192.168.1.213/32 -d 192.168.1.48/32 -p udp -m udp --sport 9997 --dport 9997 -j SNAT --to-source 31.193.128.139
 ```
 
+Or here's a config for OpenWRT:
+
+```
+config redirect
+	option target 'DNAT'
+	option name 'Redirect binary protocol from NTTWIFI device to a relay'
+	option src 'lan'
+	option src_ip '192.168.1.48'
+	option src_port '9997'
+	option src_dip '31.193.128.139'
+	option src_dport '9997'
+	option dest 'lan'
+	option dest_ip '192.168.1.213'
+	option dest_port '9997'
+
+config nat
+	option name 'Rewrite source IP for the NTTWIFI binary protocol relay'
+	option src 'lan'
+	option src_ip '192.168.1.213'
+	option src_port '9997'
+	option dest_ip '192.168.1.48'
+	option dest_port '9997'
+	option target 'SNAT'
+	option snat_ip '31.193.128.139'
+```
+
 Where `192.168.1.48` is the IP-address of your device, `31.193.128.139` is the IP of `www.cloudwarm.net` and `192.168.1.213` is the IP of the relay.
 
 If everything set up correctly you will see messages like the following in when you execute `docker logs --tail 5 timeguard-mqtt`:
