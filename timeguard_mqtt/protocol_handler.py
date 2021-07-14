@@ -87,9 +87,6 @@ class ProtocolHandler:
             import traceback
             traceback.print_exc()
 
-        if self.args.debug and not self.args.mask:
-            ProtocolHandler.print_bytes(source_ip, source_port, destination_ip, destination_port, parsing_result, data)
-
     def relay_callback(self, source_ip: str, source_port: int, data: bytes) -> List[Tuple[bool, bytes]]:
         is_from_client = source_ip != self.CLOUDWARM_IP
         parsed_data = None
