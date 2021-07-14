@@ -125,7 +125,7 @@ class GetHolidaySettingsRequest(Empty):
 
 @dataclass
 class InitializationSequence(DataclassMixin):
-    unknown: bytes = csfield(Hex(Bytes(this._.params_size)))
+    unknown: bytes = csfield(Hex(Bytes(13)))
 
 
 @dataclass
