@@ -4,7 +4,7 @@ from binascii import hexlify
 from typing import List, Tuple, Optional
 
 from construct import debug
-from .protocol import timeguard
+from . import protocol
 import socket
 from queue import Queue
 from time import sleep
@@ -51,7 +51,7 @@ class ProtocolHandler:
         )
 
     def print_debug(self, source_ip: str, source_port: int, destination_ip: Optional[str],
-                    destination_port: Optional[int], data: bytes, parsed_data: Optional[timeguard.Timeguard]):
+                    destination_port: Optional[int], data: bytes, parsed_data: Optional[protocol.Timeguard]):
         if not self.args.debug and not self.args.print_parsed_data:
             return
 
@@ -73,8 +73,8 @@ class ProtocolHandler:
                         # checksum.
                         # The easiest way to replace the checksum and keep the packet valid is to build it and parse
                         # again, `construct` would take care of the rest.
-                        debug_obj = timeguard.format.parse(timeguard.format.build(debug_obj))
-                        debug_data = timeguard.format.build(debug_obj)
+                        debug_obj = protocol.format.parse(protocol.format.build(debug_obj))
+                        debug_data = protocol.format.build(debug_obj)
 
                 if self.args.debug:
                     ProtocolHandler.print_bytes(source_ip, source_port, destination_ip,
@@ -94,7 +94,7 @@ class ProtocolHandler:
         is_from_client = source_ip != self.CLOUDWARM_IP
         parsed_data = None
         try:
-            parsed_data = timeguard.format.parse(data)
+            parsed_data = protocol.format.parse(data)
         except:
             import traceback
             traceback.print_exc()
@@ -118,13 +118,13 @@ class ProtocolHandler:
         method = 'process_request_{}'.format(self.args.mode)
         return getattr(self, method)(destination_ip, destination_port, parsed_data)
 
-    def process_request_relay(self, destination_ip: str, destination_port: int, data: timeguard.Timeguard) -> List[Tuple[str, int, bytes]]:
-        return [(destination_ip, destination_port, timeguard.format.build(data))]
+    def process_request_relay(self, destination_ip: str, destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
+        return [(destination_ip, destination_port, protocol.format.build(data))]
 
-    def process_request_fallback(self, destination_ip: str, destination_port: int, data: timeguard.Timeguard) -> List[Tuple[str, int, bytes]]:
-        return [(destination_ip, destination_port, timeguard.format.build(data))]
+    def process_request_fallback(self, destination_ip: str, destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
+        return [(destination_ip, destination_port, protocol.format.build(data))]
 
-    def process_request_local(self, destination_ip: str, destination_port: int, data: timeguard.Timeguard) -> List[Tuple[str, int, bytes]]:
+    def process_request_local(self, destination_ip: str, destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
         return []
 
     def store_client(self, device_id: int, ip: str, port: int):

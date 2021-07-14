@@ -21,9 +21,7 @@ def run():
     mqtt = Mqtt(args, network_events_queue, mqtt_events_queue)
 
     protocol_thread = threading.Thread(target=p.run)
-    protocol_thread.start()
     mqtt_thread = threading.Thread(target=mqtt.run)
-    mqtt_thread.start()
 
     def termination(*args, **kwargs):
         p.stop()
@@ -33,6 +31,9 @@ def run():
     signal.signal(signal.SIGTERM, termination)
 
     try:
+        protocol_thread.start()
+        mqtt_thread.start()
+
         mqtt_thread.join()
         protocol_thread.join()
     except KeyboardInterrupt:
