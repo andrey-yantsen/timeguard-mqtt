@@ -43,18 +43,18 @@ class Mqtt:
 
         self.client.will_set(self.topic('lwt'), payload='offline', retain=True)
 
-        self.client.connect(self.args.mqtt_host, self.args.mqtt_port)
+        self.client.connect_async(self.args.mqtt_host, self.args.mqtt_port)
+        self.client.loop_start()
         while not self._stop:
+            for device_id, last_command in self._known_devices.items():
+                if time() - last_command > self.args.mqtt_device_online_timeout:
+                    self.client.publish(self.device_topic(device_id, 'status'), payload='offline', retain=True)
+
             try:
                 tg_data: protocol.Timeguard = self.network_events_queue.get_nowait()
                 self.handle_protocol_data(tg_data)
             except QueueEmptyError:
-                pass
-            self.client.loop()
-
-            for device_id, last_command in self._known_devices.items():
-                if time() - last_command > self.args.mqtt_device_online_timeout:
-                    self.client.publish(self.device_topic(device_id, 'status'), payload='offline', retain=True)
+                sleep(0.1)
 
         self.client.publish(self.topic('lwt'), payload='offline', retain=True)
 
@@ -62,6 +62,7 @@ class Mqtt:
             self.client.publish(self.device_topic(device_id, 'status'), payload='offline', retain=True)
 
         self.client.disconnect()
+        self.client.loop_stop()
 
     def handle_protocol_data(self, data: protocol.Timeguard):
         device_id = data.payload.device_id
