@@ -6,8 +6,8 @@ from typing import List, Tuple, Optional
 from construct import debug
 from . import protocol
 import socket
-from queue import Queue
-from time import sleep
+from queue import Queue, Empty as QueueEmptyError
+from time import sleep, time
 from copy import deepcopy
 
 
@@ -19,6 +19,8 @@ class ProtocolHandler:
         self.network_events_queue = network_events_queue
         self.mqtt_events_queue = mqtt_events_queue
         self.device_to_ip_map = dict()
+        self._stop = False
+        self._waiting_for_response = {}
 
     def prepare_argparse(parser: argparse._ActionsContainer):
         parser.add_argument('--mode', '-m', choices=['relay', 'fallback', 'local'],
@@ -99,6 +101,9 @@ class ProtocolHandler:
         destination_ip, destination_port = None, None
         if parsed_data:
             if is_from_client:
+                if parsed_data.payload.seq in self._waiting_for_response:
+                    del self._waiting_for_response[parsed_data.payload.seq]
+
                 destination_ip, destination_port = self.CLOUDWARM_IP, 9997
                 self.store_client(parsed_data.payload.device_id, source_ip, source_port)
             else:
@@ -131,6 +136,35 @@ class ProtocolHandler:
     def get_client(self, device_id) -> Tuple[Optional[str], Optional[int]]:
         return self.device_to_ip_map.get(device_id, (None, None))
 
+    def add_command_to_waiting_list(self, data: protocol.Timeguard) -> protocol.Timeguard:
+        if 0 <= data.payload.seq < 0xFF:
+            if len(self._waiting_for_response) >= 0xFE:
+                print('HOW????')
+                return []
+
+            if data.payload.seq in self._waiting_for_response:
+                stored_data = self._waiting_for_response[data.payload.seq]
+                if stored_data != data:
+                    while data.payload.seq in self._waiting_for_response:
+                        data.payload.seq = (data.payload.seq + 1) % 255
+            self._waiting_for_response[data.payload.seq] = {
+                'queue_time': time(),
+                'data': data,
+            }
+
+        return data
+
+    def build_requests_from_protocol(self, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
+        device_ip, device_port = self.get_client(data.payload.device_id)
+
+        if not device_ip:
+            return []
+
+        data = self.add_command_to_waiting_list(data)
+
+        return [
+            (device_ip, device_port, protocol.format.build(data))
+        ]
 
     def relay(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -143,18 +177,31 @@ class ProtocolHandler:
             if self._stop:
                 break
 
+            rewritten_data = []
             try:
-                data, fromaddr = sock.recvfrom(1024)
-            except BlockingIOError:
-                sleep(0.1)
-                continue
+                tg_data: protocol.Timeguard = self.mqtt_events_queue.get_nowait()
+                rewritten_data += self.build_requests_from_protocol(tg_data)
+            except QueueEmptyError:
+                pass
             except Exception:
                 import traceback
                 traceback.print_exc()
-                sleep(0.1)
-                continue
 
-            rewritten_data = self.relay_callback(fromaddr[0], fromaddr[1], data)
+            try:
+                data, fromaddr = sock.recvfrom(1024)
+                rewritten_data += self.relay_callback(fromaddr[0], fromaddr[1], data)
+            except BlockingIOError:
+                pass
+            except Exception:
+                import traceback
+                traceback.print_exc()
+
+            for waiting_config in self._waiting_for_response.values():
+                if time() - waiting_config['queue_time'] >= 1:
+                    rewritten_data += self.build_requests_from_protocol(waiting_config['data'])
 
             for (destination_ip, destination_port, data) in rewritten_data:
                 sock.sendto(data, (destination_ip, destination_port))
+
+            if not rewritten_data:
+                sleep(0.1)
