@@ -47,10 +47,14 @@ class Mqtt:
         self.client.connect_async(self.args.mqtt_host, self.args.mqtt_port)
         self.client.loop_start()
         while not self._stop:
+            devices_to_delete = []
             for device_id, state in self._device_state.items():
                 if time() - state['last_command'] > self.args.device_online_timeout:
                     self.report_offline(self.device_topic(device_id, 'lwt'))
-                    del self._device_state[device_id]
+                    devices_to_delete.append(device_id)
+
+            for device_id in devices_to_delete:
+                del self._device_state[device_id]
 
             try:
                 tg_data: protocol.Timeguard = self.network_events_queue.get_nowait()

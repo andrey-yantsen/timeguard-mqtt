@@ -149,6 +149,7 @@ class ProtocolHandler:
                         data.payload.seq = (data.payload.seq + 1) % 255
             self._waiting_for_response[data.payload.seq] = {
                 'queue_time': time(),
+                'resend_after': time() + 1,
                 'data': data,
             }
 
@@ -196,9 +197,18 @@ class ProtocolHandler:
                 import traceback
                 traceback.print_exc()
 
-            for waiting_config in self._waiting_for_response.values():
-                if time() - waiting_config['queue_time'] >= 1:
+            messages_to_remove = []
+            for seq, waiting_config in self._waiting_for_response.values():
+                if waiting_config['resend_after'] - waiting_config['queue_time'] >= 5:
+                    messages_to_remove.append(seq)
+                    continue
+
+                if waiting_config['resend_after'] >= time():
                     rewritten_data += self.build_requests_from_protocol(waiting_config['data'])
+                    self._waiting_for_response[seq]['resend_after'] = time() + 1
+
+            for seq in messages_to_remove:
+                del self._waiting_for_response[seq]
 
             for (destination_ip, destination_port, data) in rewritten_data:
                 sock.sendto(data, (destination_ip, destination_port))
