@@ -127,13 +127,14 @@ timeguard/12345678/boost_duration_left 00:00
 
 Where `12345678` is the device id. Three of those topics are settable:
 
-* `boost/set`: turn on boost mode for the specified period of time. Possible values: 'Off', '1 hour' and '2 hours'.
+* `boost/set`: turn on boost mode for the specified period of time. Possible values: 'Off', '1 hour' and '2 hours';
 * `advance/set`: controls advance mode: it will set the switch to On (if it's currently off, and vice-versa) until the
-next schedule. Possible values: `ON` and `OFF`
-* `work_mode/set`: changes the devices' work mode. Possible values: `Always off`, `Always on`, `Auto` and `Holiday`.
+next schedule. Possible values: `ON` and `OFF`;
+* `work_mode/set`: changes the device's work mode. Possible values: `Always off`, `Always on`, `Auto` and `Holiday`.
 
 ## How to help
 
-1. Keep the program up and running for at least 24 hours (the more — the better); note the timestamps when you do something with the device
-2. Grab all the logs you will receive and save it as [gist](https://gist.github.com)
-3. Create a new [discussion](https://github.com/andrey-yantsen/timeguard-mqtt/discussions) and share your logs
+1. Keep the program up and running for at least 24 hours (the more — the better); note the timestamps when you do
+something with the device;
+2. Grab all the logs you will receive and save it as [gist](https://gist.github.com);
+3. Create a new [discussion](https://github.com/andrey-yantsen/timeguard-mqtt/discussions) and share your logs.
