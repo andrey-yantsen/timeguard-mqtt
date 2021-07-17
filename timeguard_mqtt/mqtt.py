@@ -2,13 +2,20 @@ import argparse
 from queue import Queue, Empty as QueueEmptyError
 from time import sleep, time
 import paho.mqtt.client as mqtt
-import struct
 from typing import Optional
 from . import protocol
 import json
+from datetime import datetime
+from dateutil.relativedelta import relativedelta, SU
 
 
 class Mqtt:
+    BOOST_MAP = {
+        protocol.BoostState.OFF: 'Off',
+        protocol.BoostState.ONE_HOUR: '1 hour',
+        protocol.BoostState.TWO_HOURS: '2 hours',
+    }
+
     def __init__(self, args, network_events_queue: Queue, mqtt_events_queue: Queue):
         self.args = args
         self.network_events_queue = network_events_queue
@@ -85,6 +92,7 @@ class Mqtt:
                     self.setup_hass(device_id)
 
             self._device_state[device_id]['last_command'] = time()
+            self.report_state(device_id)
 
         if data.payload.message_type == protocol.MessageType.PING:
             if data.payload.message_flags & protocol.MessageFlags.IS_FROM_SERVER != protocol.MessageFlags.IS_FROM_SERVER:
@@ -109,7 +117,21 @@ class Mqtt:
                     'load_was_detected_previously',
                     'ON' if data.payload.params.state.load_was_detected_previously else 'OFF'
                 )
-                self.report_state(device_id)
+                self.update_device_state(
+                    device_id,
+                    'boost',
+                    self.BOOST_MAP.get(data.payload.params.boost.boost_type, 'Unknown')
+                )
+
+                boost_duration_left = '00:00'
+                if data.payload.params.boost.minutes_from_sunday:
+                    now = datetime.utcnow()
+                    sunday_midnight = now.replace(hour=0, minute=0, second=0,
+                                                  microsecond=0) + relativedelta(weekday=SU(-1))
+                    boost_off_time = sunday_midnight + \
+                        relativedelta(minutes=data.payload.params.boost.minutes_from_sunday)
+                    boost_duration_left = ':'.join(str(boost_off_time - now).split(':')[0:2])
+                self.update_device_state(device_id, 'boost_duration_left', boost_duration_left)
 
     def report_state(self, device_id: int):
         self.client.publish(self.device_topic(device_id, 'lwt'), payload='online')
@@ -123,15 +145,21 @@ class Mqtt:
         return '{}/{}'.format(self.args.mqtt_root_topic, topic)
 
     def setup_device(self, device_id: int):
-        self.client.subscribe(self.device_topic(device_id, 'send_raw_command'))
+        self.client.subscribe(self.device_topic(device_id, '+/set'))
 
     def setup_hass(self, device_id: int):
         self.configure_hass_sensor(device_id, 'sensor', 'uptime', 'Uptime', unit_of_measurement='s')
+        self.configure_hass_sensor(device_id, 'sensor', 'boost_duration_left', 'Boost left')
         self.configure_hass_sensor(device_id, 'binary_sensor', 'switch_state', 'Switch state')
         self.configure_hass_sensor(device_id, 'binary_sensor', 'load_detected', 'Load detected')
         self.configure_hass_sensor(device_id, 'binary_sensor', 'load_was_detected_previously',
                                    'Load was detected prevously')
-        self.configure_hass_sensor(device_id, 'binary_sensor', 'advance_mode_state', 'Advance mode')
+        self.configure_hass_sensor(device_id, 'switch', 'advance_mode',
+                                   'Advance mode', command_topic='~/advance_mode/set')
+        self.configure_hass_sensor(device_id, 'select', 'boost', 'Boost',
+                                   command_topic='~/boost/set', options=list(self.BOOST_MAP.values()))
+
+        self.client.publish(self.topic('lwt'), payload='online')
 
     def configure_hass_sensor(self, device_id: int, sensor_type: str, sensor_id: str, name: str, **kwargs):
         device = {
@@ -190,10 +218,20 @@ class Mqtt:
             client.subscribe(self.args.homeassistant_status_topic)
         client.publish(self.topic('lwt'), payload='online')
 
+    def on_message_set_raw_command(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
+        self.mqtt_events_queue.put(protocol.format.parse(bytes.fromhex(msg.payload.decode('ascii'))))
+
+    def on_message_set_boost(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
+        print('{}: {}'.format(msg.topic, msg.payload.decode('ascii')))
+
+    def on_message_set_advance_mode(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
+        print('{}: {}'.format(msg.topic, msg.payload.decode('ascii')))
+
     def on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-        if msg.topic.endswith('/send_raw_command'):
+        last_2_parts = msg.topic.split('/')[-2:]
+        if hasattr(self, 'on_message_' + '_'.join(last_2_parts[::-1])):
             try:
-                self.mqtt_events_queue.put(protocol.format.parse(bytes.fromhex(msg.payload.decode('ascii'))))
+                getattr(self, 'on_message_' + '_'.join(last_2_parts[::-1]))(client, userdata, msg)
             except:
                 pass
         elif msg.topic == self.args.homeassistant_status_topic and msg.payload == b'online':
