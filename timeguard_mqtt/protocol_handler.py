@@ -155,16 +155,20 @@ class ProtocolHandler:
 
         return data
 
-    def build_requests_from_protocol(self, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
+    def build_requests_from_protocol(self, data: protocol.Timeguard, resending=False) -> List[Tuple[str, int, bytes]]:
         device_ip, device_port = self.get_client(data.payload.device_id)
 
         if not device_ip:
             return []
 
-        data = self.add_command_to_waiting_list(data)
+        if not resending:
+            data = self.add_command_to_waiting_list(data)
+
+        data_raw = protocol.format.build(data)
+        self.print_debug('internal', 9997, device_ip, device_port, data_raw, data)
 
         return [
-            (device_ip, device_port, protocol.format.build(data))
+            (device_ip, device_port, data_raw)
         ]
 
     def relay(self):
@@ -197,21 +201,29 @@ class ProtocolHandler:
                 import traceback
                 traceback.print_exc()
 
-            messages_to_remove = []
-            for seq, waiting_config in self._waiting_for_response.values():
-                if waiting_config['resend_after'] - waiting_config['queue_time'] >= 5:
-                    messages_to_remove.append(seq)
-                    continue
+            try:
+                messages_to_remove = []
+                for seq, waiting_config in self._waiting_for_response.items():
+                    if waiting_config['resend_after'] - waiting_config['queue_time'] >= 5:
+                        messages_to_remove.append(seq)
+                        continue
 
-                if waiting_config['resend_after'] >= time():
-                    rewritten_data += self.build_requests_from_protocol(waiting_config['data'])
-                    self._waiting_for_response[seq]['resend_after'] = time() + 1
+                    if waiting_config['resend_after'] <= time():
+                        rewritten_data += self.build_requests_from_protocol(waiting_config['data'], True)
+                        self._waiting_for_response[seq]['resend_after'] = time() + 1
 
-            for seq in messages_to_remove:
-                del self._waiting_for_response[seq]
+                for seq in messages_to_remove:
+                    del self._waiting_for_response[seq]
+            except:
+                import traceback
+                traceback.print_exc()
 
             for (destination_ip, destination_port, data) in rewritten_data:
-                sock.sendto(data, (destination_ip, destination_port))
+                try:
+                    sock.sendto(data, (destination_ip, destination_port))
+                except:
+                    import traceback
+                    traceback.print_exc()
 
             if not rewritten_data:
                 sleep(0.1)

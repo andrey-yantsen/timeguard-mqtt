@@ -4,7 +4,7 @@ This Python module provides an open-source implementation of the device API used
 
 This implementation is based on the [investigation of the API](https://github.com/rjpearce/timeguard-supplymaster/issues/1).
 
-It is currently in the early stages of development, contributions are always welcome. At the moment the program can only be used for protocol debugging.
+It is currently in the early stages of development, contributions are always welcome.
 
 **USE IT AT YOUR OWN RISK.**
 
@@ -17,6 +17,21 @@ This information used has been gathered legally using the NTTWIFI device, [Wires
 This software is being developed to aid my own personal efforts to make the device work offline.
 
 The software is provided “as is”, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. in no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the softwares or the use or mis-used or other dealings in the software.
+
+## Features
+
+- [x] Act as a relay-proxy between the device and the server — blindly proxy data from one to another
+- [ ] Complete protocol awareness (**be advised** without this the program could brake your device on "write" commands)
+- [ ] Act as fallback proxy: the program is able to support some "basic" level of communication with the device and at the same time you can use the SupplyMaster application on your phone to control everything
+- [ ] Local server: app can do everything the server can (except for the support of mobile app, of course). You don't need internet all all to work with the timeswitch
+- [ ] Reporting state to MQTT
+  - [x] Basic info: switch status, load, advance mode, boost, uptime, work mode
+  - [ ] Holiday info
+  - [ ] Schedule-related info
+- [ ] Control over MQTT (**be advised** there's no guarantee that this will not break your device, use it at own risk)
+  - [x] Basic: boost, advance, work mode
+  - [ ] Holiday info
+  - [ ] Schedule
 
 ## How To
 
@@ -31,7 +46,8 @@ docker run -d --name timeguard-mqtt \
   --mask
 ```
 
-The options `--debug` and `--mask` are optional, but at the current stage there's now reasons to run the program without them.
+The options `--debug` and `--mask` are optional, but at the current stage there's now reasons to run the program 
+without them.
 
 To send traffic to the relay you need to apply following rules to your router's firewall:
 
@@ -82,7 +98,40 @@ If everything set up correctly you will see messages like the following in when 
 The most sensitive information here is the Device ID (you can see it as `78 56 34 12`) — because the program was run with `--mask` argument, it hides this
 information and you should be perfectly safe sharing the resulting logs.
 
-# How to help
+## MQTT
+
+To enable MQTT-communication use the following options:
+* `--mqtt-host` the IP/domain of your MQTT-broker
+* `--mqtt-port` port of the MQTT broker, if different from 1883
+* `--mqtt-clientid`
+* `--mqtt-root-topic`
+* `--mqtt-username`
+* `--mqtt-password`
+
+If you want to enable auto-discovery for home-assistant, you also need to pass the root discovery topic using 
+`--homeassistant-discovery` and home-assistant's status topic with `--homeassistant-status-topic`.
+
+After that you will see the following set of topics, for each device:
+
+```
+timeguard/12345678/uptime 158926
+timeguard/12345678/switch_state OFF
+timeguard/12345678/load_detected OFF
+timeguard/12345678/advance_mode OFF
+timeguard/12345678/load_was_detected_previously ON
+timeguard/12345678/boost Off
+timeguard/12345678/work_mode Auto
+timeguard/12345678/boost_duration_left 00:00
+```
+
+Where `12345678` is the device id. Three of those topics are settable:
+
+* `boost/set`: turn on boost mode for the specified period of time. Possible values: 'Off', '1 hour' and '2 hours'.
+* `advance/set`: controls advance mode: it will set the switch to On (if it's currently off, and vice-versa) until the
+next schedule. Possible values: `ON` and `OFF`
+* `work_mode/set`: changes the devices' work mode. Possible values: `Always off`, `Always on`, `Auto` and `Holiday`.
+
+## How to help
 
 1. Keep the program up and running for at least 24 hours (the more — the better); note the timestamps when you do something with the device
 2. Grab all the logs you will receive and save it as [gist](https://gist.github.com)

@@ -16,6 +16,17 @@ class Mqtt:
         protocol.BoostState.TWO_HOURS: '2 hours',
     }
 
+    BOOST_MAP_REVERSE = dict(zip(BOOST_MAP.values(), BOOST_MAP.keys()))
+
+    WORK_MODE_MAP = {
+        protocol.WorkMode.ALWAYS_OFF: 'Always off',
+        protocol.WorkMode.ALWAYS_ON: 'Always on',
+        protocol.WorkMode.AUTO: 'Auto',
+        protocol.WorkMode.HOLIDAY: 'Holiday',
+    }
+
+    WORK_MODE_MAP_REVERSE = dict(zip(WORK_MODE_MAP.values(), WORK_MODE_MAP.keys()))
+
     def __init__(self, args, network_events_queue: Queue, mqtt_events_queue: Queue):
         self.args = args
         self.network_events_queue = network_events_queue
@@ -68,6 +79,9 @@ class Mqtt:
                 self.handle_protocol_data(tg_data)
             except QueueEmptyError:
                 sleep(0.1)
+            except:
+                import traceback
+                traceback.print_exc()
 
         self.report_offline(self.topic('lwt'))
 
@@ -92,10 +106,8 @@ class Mqtt:
                     self.setup_hass(device_id)
 
             self._device_state[device_id]['last_command'] = time()
-            self.report_state(device_id)
 
-        if data.payload.message_type == protocol.MessageType.PING:
-            if data.payload.message_flags & protocol.MessageFlags.IS_FROM_SERVER != protocol.MessageFlags.IS_FROM_SERVER:
+            if data.payload.message_type == protocol.MessageType.PING:
                 self.update_device_state(device_id, 'uptime', data.payload.params.uptime)
                 self.update_device_state(
                     device_id,
@@ -109,7 +121,7 @@ class Mqtt:
                 )
                 self.update_device_state(
                     device_id,
-                    'advance_mode_state',
+                    'advance_mode',
                     'ON' if data.payload.params.state.advance_mode_state == protocol.AdvanceState.ON else 'OFF'
                 )
                 self.update_device_state(
@@ -122,21 +134,26 @@ class Mqtt:
                     'boost',
                     self.BOOST_MAP.get(data.payload.params.boost.boost_type, 'Unknown')
                 )
+                self.update_device_state(
+                    device_id,
+                    'work_mode',
+                    self.WORK_MODE_MAP.get(data.payload.params.work_mode, 'Unknown')
+                )
 
                 boost_duration_left = '00:00'
                 if data.payload.params.boost.minutes_from_sunday:
-                    now = datetime.utcnow()
+                    now = datetime.now()
                     sunday_midnight = now.replace(hour=0, minute=0, second=0,
                                                   microsecond=0) + relativedelta(weekday=SU(-1))
                     boost_off_time = sunday_midnight + \
-                        relativedelta(minutes=data.payload.params.boost.minutes_from_sunday)
+                        relativedelta(minutes=data.payload.params.boost.expected_finish_time)
                     boost_duration_left = ':'.join(str(boost_off_time - now).split(':')[0:2])
                 self.update_device_state(device_id, 'boost_duration_left', boost_duration_left)
+                self.report_state(device_id)
 
     def report_state(self, device_id: int):
-        self.client.publish(self.device_topic(device_id, 'lwt'), payload='online')
         for key, value in self._device_state[device_id]['parameters'].items():
-            self.client.publish(self.device_topic(device_id, key), payload=value)
+            self.client.publish(self.device_topic(device_id, key), payload=value, qos=1)
 
     def update_device_state(self, device_id: int, parameter: str, value: str):
         self._device_state[device_id]['parameters'][parameter] = value
@@ -158,8 +175,11 @@ class Mqtt:
                                    'Advance mode', command_topic='~/advance_mode/set')
         self.configure_hass_sensor(device_id, 'select', 'boost', 'Boost',
                                    command_topic='~/boost/set', options=list(self.BOOST_MAP.values()))
+        self.configure_hass_sensor(device_id, 'select', 'work_mode', 'Work mode',
+                                   command_topic='~/work_mode/set', options=list(self.WORK_MODE_MAP.values()))
 
-        self.client.publish(self.topic('lwt'), payload='online')
+        self.client.publish(self.topic('lwt'), payload='online', qos=1)
+        self.client.publish(self.device_topic(device_id, 'lwt'), payload='online', qos=1)
 
     def configure_hass_sensor(self, device_id: int, sensor_type: str, sensor_id: str, name: str, **kwargs):
         device = {
@@ -192,11 +212,12 @@ class Mqtt:
                     'device': device,
                 } | kwargs
             ),
+            qos=1,
             retain=True
         )
 
     def discovery_unique_id(self, device_id: int, sensor: str) -> str:
-        return '{}_{}'.format(self.format_device(device_id), sensor)
+        return 'timeguard_{}_{}'.format(self.format_device(device_id), sensor)
 
     def hass_topic(self, topic: str) -> Optional[str]:
         if self.args.homeassistant_discovery:
@@ -216,27 +237,62 @@ class Mqtt:
     def on_connect(self, client: mqtt.Client, userdata, flags, rc):
         if self.args.homeassistant_discovery:
             client.subscribe(self.args.homeassistant_status_topic)
-        client.publish(self.topic('lwt'), payload='online')
+        client.publish(self.topic('lwt'), payload='online', qos=1)
 
-    def on_message_set_raw_command(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
+    def on_message_set_raw_command(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage, device_id: int):
         self.mqtt_events_queue.put(protocol.format.parse(bytes.fromhex(msg.payload.decode('ascii'))))
 
-    def on_message_set_boost(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-        print('{}: {}'.format(msg.topic, msg.payload.decode('ascii')))
+    def on_message_set_boost(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage, device_id: int):
+        boost = self.BOOST_MAP_REVERSE.get(msg.payload.decode('utf-8'))
 
-    def on_message_set_advance_mode(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-        print('{}: {}'.format(msg.topic, msg.payload.decode('ascii')))
+        if boost is None:
+            raise Exception('Unknown boost mode requested: {}'.format(msg.payload))
+
+        data = protocol.Timeguard.prepare(
+            protocol.MessageType.BOOST,
+            protocol.MessageFlags.server(True),
+            device_id,
+            boost_type=boost
+        )
+        self.mqtt_events_queue.put(data)
+
+    def on_message_set_advance_mode(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage, device_id: int):
+        advance = protocol.AdvanceState.ON if msg.payload == b'ON' else protocol.AdvanceState.OFF
+        data = protocol.Timeguard.prepare(
+            protocol.MessageType.ADVANCE,
+            protocol.MessageFlags.server(True),
+            device_id,
+            mode=advance
+        )
+        self.mqtt_events_queue.put(data)
+
+    def on_message_set_work_mode(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage, device_id: int):
+        work_mode = self.WORK_MODE_MAP_REVERSE.get(msg.payload.decode('utf-8'))
+
+        if work_mode is None:
+            raise Exception('Unknown work mode mode requested: {}'.format(msg.payload))
+
+        data = protocol.Timeguard.prepare(
+            protocol.MessageType.WORK_MODE,
+            protocol.MessageFlags.server(True),
+            device_id,
+            work_mode=work_mode
+        )
+        self.mqtt_events_queue.put(data)
 
     def on_message(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage):
-        last_2_parts = msg.topic.split('/')[-2:]
-        if hasattr(self, 'on_message_' + '_'.join(last_2_parts[::-1])):
+        last_3_parts = msg.topic.split('/')[-3:]
+        device_id = last_3_parts[0]
+        on_message_callback_name = 'on_message_' + '_'.join(last_3_parts[-2:][::-1])
+        if len(last_3_parts) == 3 and hasattr(self, on_message_callback_name):
             try:
-                getattr(self, 'on_message_' + '_'.join(last_2_parts[::-1]))(client, userdata, msg)
+                getattr(self, on_message_callback_name)(client, userdata, msg, int(device_id, 16))
             except:
-                pass
+                import traceback
+                traceback.print_exc()
         elif msg.topic == self.args.homeassistant_status_topic and msg.payload == b'online':
             # We need to repeat non-retainable topics when HASS restarted
-            client.publish(self.topic('lwt'), payload='online')
+            client.publish(self.topic('lwt'), payload='online', qos=1)
             for device_id in self._device_state.keys():
                 self.report_state(device_id)
 

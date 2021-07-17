@@ -4,6 +4,7 @@ from arrow.arrow import Arrow
 from construct import Computed, Const, Int8ul, Int16ul, Int32ul, this, Switch, Bytes, Hex, HexDump, ExprValidator, BitsInteger, Flag, ByteSwapped, RestreamData, Timestamp, Rebuild, obj_, PaddedString
 from construct_typed import DataclassMixin, DataclassBitStruct, DataclassStruct, EnumBase, FlagsEnumBase, TFlagsEnum, TEnum, csfield
 import crcmod
+from random import randrange
 
 
 crc16_xmodem = crcmod.mkCrcFun(0x11021, rev=False, initCrc=0x0000, xorOut=0x0000)
@@ -54,6 +55,12 @@ class MessageFlags(FlagsEnumBase):
     RESERVED2 = 32
     RESERVED3 = 64
     RESERVED4 = 128
+
+    def server(write: bool = False) -> 'MessageFlags':
+        return MessageFlags(
+            MessageFlags.IS_FROM_SERVER | MessageFlags.UNKNOWN1 |
+            MessageFlags.IS_UPDATE_REQUEST if write else 0
+        )
 
 
 class SwitchState(EnumBase):
@@ -277,9 +284,50 @@ class SetScheduleInfoResponse(GetScheduleInfoResponse):
 
 @dataclass
 class Payload(DataclassMixin):
+    MESSAGE_TYPE_MAP = {
+        98: InitializationRequest,
+        178: InitializationResponse,
+        194: GetInitializationSequenceRequest,
+        82: GetInitializationSequenceResponse,
+
+        96: PingRequest,
+        240: PingResponse,
+
+        237: BoostRequest,
+        125: BoostResponse,
+
+        236: AdvanceModeRequest,
+        124: AdvanceModeResponse,
+
+        232: SetWorkmodeRequest,
+        120: SetWorkmodeResponse,
+
+        233: SetHolidayRequest,
+        121: SetHolidayResponse,
+
+        201: GetHolidaySettingsRequest,
+        89: GetHolidaySettingsResponse,
+
+        203: GetCurrentScheduleRequest,
+        91: GetCurrentScheduleResponse,
+
+        235: SetCurrentScheduleRequest,
+        123: SetCurrentScheduleResponse,
+
+        234: SetScheduleNameRequest,
+        122: SetScheduleNameResponse,
+
+        197: GetScheduleInfoRequest,
+        85: GetScheduleInfoResponse,
+
+        229: SetScheduleInfoRequest,
+        117: SetScheduleInfoResponse,
+    }
+
     message_type: MessageType = csfield(TEnum(ExprValidator(Int8ul, obj_ & 0b11110000 == 0), MessageType))
     message_flags: MessageFlags = csfield(TFlagsEnum(ExprValidator(Int8ul, obj_ & 0b11110000 == 0), MessageFlags))
-    message_type_id: int = csfield(Computed(this.message_type + (this.message_flags << 4)))
+    message_type_id: int = csfield(
+        Computed(lambda ctx: Payload.get_message_type_id(ctx.message_type, ctx.message_flags)))
     params_size: int = csfield(
         Rebuild(
             Int16ul,
@@ -291,44 +339,12 @@ class Payload(DataclassMixin):
     unknown: int = csfield(Hex(Bytes(3)))
     device_id: int = csfield(Hex(Int32ul))
     params: typing.Any = csfield(Switch(this.message_type_id, {
-        98: DataclassStruct(InitializationRequest),
-        178: DataclassStruct(InitializationResponse),
-        194: DataclassStruct(GetInitializationSequenceRequest),
-        82: DataclassStruct(GetInitializationSequenceResponse),
-
-        96: DataclassStruct(PingRequest),
-        240: DataclassStruct(PingResponse),
-
-        237: DataclassStruct(BoostRequest),
-        125: DataclassStruct(BoostResponse),
-
-        236: DataclassStruct(AdvanceModeRequest),
-        124: DataclassStruct(AdvanceModeResponse),
-
-        232: DataclassStruct(SetWorkmodeRequest),
-        120: DataclassStruct(SetWorkmodeResponse),
-
-        233: DataclassStruct(SetHolidayRequest),
-        121: DataclassStruct(SetHolidayResponse),
-
-        201: DataclassStruct(GetHolidaySettingsRequest),
-        89: DataclassStruct(GetHolidaySettingsResponse),
-
-        203: DataclassStruct(GetCurrentScheduleRequest),
-        91: DataclassStruct(GetCurrentScheduleResponse),
-
-        235: DataclassStruct(SetCurrentScheduleRequest),
-        123: DataclassStruct(SetCurrentScheduleResponse),
-
-        234: DataclassStruct(SetScheduleNameRequest),
-        122: DataclassStruct(SetScheduleNameResponse),
-
-        197: DataclassStruct(GetScheduleInfoRequest),
-        85: DataclassStruct(GetScheduleInfoResponse),
-
-        229: DataclassStruct(SetScheduleInfoRequest),
-        117: DataclassStruct(SetScheduleInfoResponse),
+        key: DataclassStruct(value)
+        for key, value in MESSAGE_TYPE_MAP.items()
     }, default=HexDump(Bytes(this.params_size))))
+
+    def get_message_type_id(message_type: MessageType, message_flags: MessageFlags) -> int:
+        return message_type + (message_flags << 4)
 
 
 @dataclass
@@ -337,7 +353,7 @@ class Timeguard(DataclassMixin):
     payload_size: int = csfield(
         Rebuild(
             Int16ul,
-            lambda ctx: len(ctx.payload_raw)
+            lambda ctx: len(DataclassStruct(Payload).build(ctx.payload))
         )
     )
     message_id: int = csfield(Hex(Int32ul))
@@ -361,6 +377,33 @@ class Timeguard(DataclassMixin):
     )
 
     footer: bytes = csfield(Hex(Const(b"\x2D\xDF")))
+
+    def prepare(message_type: MessageType, message_flags: MessageFlags, device_id: int, message_id: int = 0xFFFFFFFF, payload_seq: typing.Optional[int] = None, payload_unknown=0x000000, **payload_params_kwargs) -> 'Timeguard':
+        message_type_id = Payload.get_message_type_id(message_type, message_flags)
+        payload_params_class = Payload.MESSAGE_TYPE_MAP.get(message_type_id)
+
+        if payload_params_class is None:
+            raise Exception('Unknown message_type_id={} ({} / {})'.format(message_type_id, message_type, message_flags))
+
+        payload_params = payload_params_class(**payload_params_kwargs)
+
+        if payload_seq is None:
+            if message_flags & MessageFlags.IS_FROM_SERVER == 0:
+                payload_seq = 0xFF
+            else:
+                payload_seq = randrange(0, 0xFE)
+
+        ret = Timeguard(message_id=message_id)
+        ret.payload = Payload(
+            message_type=message_type,
+            message_flags=message_flags,
+            seq=payload_seq,
+            unknown=payload_unknown,
+            device_id=device_id,
+            params=payload_params
+        )
+
+        return ret
 
 
 format = DataclassStruct(Timeguard)
