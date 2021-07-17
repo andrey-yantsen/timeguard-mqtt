@@ -142,6 +142,16 @@ class Mqtt:
         self.report_state(device_id, 'uptime', 'switch_state', 'load_detected', 'advance_mode',
                           'load_was_detected_previously', 'boost', 'work_mode', 'boost_duration_left')
 
+    def handle_client_code_version(self, payload: protocol.Payload):
+        if payload.message_flags & protocol.MessageFlags.IS_UPDATE_REQUEST == 0:
+            return
+
+        device_id = payload.device_id
+        payload_params: protocol.ReportCodeVersionRequest = payload.params
+
+        self.update_device_state(device_id, 'code_version', payload_params.code_version)
+        self.report_state(device_id, 'code_version')
+
     def handle_protocol_data(self, data: protocol.Timeguard):
         payload = data.payload
         device_id = payload.device_id
@@ -182,6 +192,7 @@ class Mqtt:
     def setup_hass(self, device_id: int):
         self.configure_hass_sensor(device_id, 'sensor', 'uptime', 'Uptime', unit_of_measurement='s')
         self.configure_hass_sensor(device_id, 'sensor', 'boost_duration_left', 'Boost left')
+        self.configure_hass_sensor(device_id, 'sensor', 'code_version', 'Code version')
         self.configure_hass_sensor(device_id, 'binary_sensor', 'switch_state', 'Switch state')
         self.configure_hass_sensor(device_id, 'binary_sensor', 'load_detected', 'Load detected')
         self.configure_hass_sensor(device_id, 'binary_sensor', 'load_was_detected_previously',
