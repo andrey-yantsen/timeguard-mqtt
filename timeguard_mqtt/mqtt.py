@@ -320,6 +320,7 @@ class Mqtt:
             # We need to repeat non-retainable topics when HASS restarted
             client.publish(self.topic('lwt'), payload='online', qos=1)
             for device_id in self._device_state.keys():
+                client.publish(self.device_topic(device_id, 'lwt'), payload='online', qos=1)
                 self.report_state(device_id)
 
     def stop(self):
