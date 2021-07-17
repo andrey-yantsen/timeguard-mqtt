@@ -2,7 +2,7 @@ import argparse
 from queue import Queue, Empty as QueueEmptyError
 from time import sleep, time
 import paho.mqtt.client as mqtt
-from typing import Optional
+from typing import Optional, List
 from . import protocol
 import json
 from datetime import datetime
@@ -94,9 +94,58 @@ class Mqtt:
     def report_offline(self, topic: str):
         self.client.publish(topic, payload='offline', retain=True)
 
+    def handle_client_ping(self, payload: protocol.Payload):
+        device_id = payload.device_id
+        payload_params: protocol.PingRequest = payload.params
+        self.update_device_state(device_id, 'uptime', payload_params.uptime)
+        self.update_device_state(
+            device_id,
+            'switch_state',
+            'ON' if payload_params.state.switch_state == protocol.SwitchState.ON else 'OFF'
+        )
+        self.update_device_state(
+            device_id,
+            'load_detected',
+            'ON' if payload_params.state.load_detected else 'OFF'
+        )
+        self.update_device_state(
+            device_id,
+            'advance_mode',
+            'ON' if payload_params.state.advance_mode_state == protocol.AdvanceState.ON else 'OFF'
+        )
+        self.update_device_state(
+            device_id,
+            'load_was_detected_previously',
+            'ON' if payload_params.state.load_was_detected_previously else 'OFF'
+        )
+        self.update_device_state(
+            device_id,
+            'boost',
+            self.BOOST_MAP.get(payload_params.boost.boost_type, 'Unknown')
+        )
+        self.update_device_state(
+            device_id,
+            'work_mode',
+            self.WORK_MODE_MAP.get(payload_params.work_mode, 'Unknown')
+        )
+
+        boost_duration_left = '00:00'
+        if payload_params.boost.minutes_from_sunday:
+            now = datetime.now()
+            sunday_midnight = now.replace(hour=0, minute=0, second=0,
+                                          microsecond=0) + relativedelta(weekday=SU(-1))
+            boost_off_time = sunday_midnight + \
+                relativedelta(minutes=payload_params.boost.expected_finish_time)
+            boost_duration_left = ':'.join(str(boost_off_time - now).split(':')[0:2])
+        self.update_device_state(device_id, 'boost_duration_left', boost_duration_left)
+
+        self.report_state(device_id, 'uptime', 'switch_state', 'load_detected', 'advance_mode',
+                          'load_was_detected_previously', 'boost', 'work_mode', 'boost_duration_left')
+
     def handle_protocol_data(self, data: protocol.Timeguard):
-        device_id = data.payload.device_id
-        if data.payload.message_flags & protocol.MessageFlags.IS_FROM_SERVER == 0:
+        payload = data.payload
+        device_id = payload.device_id
+        if payload.message_flags & protocol.MessageFlags.IS_FROM_SERVER == 0:
             if device_id not in self._device_state:
                 self._device_state[device_id] = {
                     'parameters': {},
@@ -107,52 +156,18 @@ class Mqtt:
 
             self._device_state[device_id]['last_command'] = time()
 
-            if data.payload.message_type == protocol.MessageType.PING:
-                self.update_device_state(device_id, 'uptime', data.payload.params.uptime)
-                self.update_device_state(
-                    device_id,
-                    'switch_state',
-                    'ON' if data.payload.params.state.switch_state == protocol.SwitchState.ON else 'OFF'
-                )
-                self.update_device_state(
-                    device_id,
-                    'load_detected',
-                    'ON' if data.payload.params.state.load_detected else 'OFF'
-                )
-                self.update_device_state(
-                    device_id,
-                    'advance_mode',
-                    'ON' if data.payload.params.state.advance_mode_state == protocol.AdvanceState.ON else 'OFF'
-                )
-                self.update_device_state(
-                    device_id,
-                    'load_was_detected_previously',
-                    'ON' if data.payload.params.state.load_was_detected_previously else 'OFF'
-                )
-                self.update_device_state(
-                    device_id,
-                    'boost',
-                    self.BOOST_MAP.get(data.payload.params.boost.boost_type, 'Unknown')
-                )
-                self.update_device_state(
-                    device_id,
-                    'work_mode',
-                    self.WORK_MODE_MAP.get(data.payload.params.work_mode, 'Unknown')
-                )
+        callback_name = 'handle_{}_{}'.format(
+            'client' if payload.message_flags & protocol.MessageFlags.IS_FROM_SERVER == 0 else 'server',
+            payload.message_type.name.lower()
+        )
 
-                boost_duration_left = '00:00'
-                if data.payload.params.boost.minutes_from_sunday:
-                    now = datetime.now()
-                    sunday_midnight = now.replace(hour=0, minute=0, second=0,
-                                                  microsecond=0) + relativedelta(weekday=SU(-1))
-                    boost_off_time = sunday_midnight + \
-                        relativedelta(minutes=data.payload.params.boost.expected_finish_time)
-                    boost_duration_left = ':'.join(str(boost_off_time - now).split(':')[0:2])
-                self.update_device_state(device_id, 'boost_duration_left', boost_duration_left)
-                self.report_state(device_id)
+        if hasattr(self, callback_name):
+            getattr(self, callback_name)(payload)
 
-    def report_state(self, device_id: int):
+    def report_state(self, device_id: int, *params_to_report):
         for key, value in self._device_state[device_id]['parameters'].items():
+            if params_to_report and key not in params_to_report:
+                continue
             self.client.publish(self.device_topic(device_id, key), payload=value, qos=1)
 
     def update_device_state(self, device_id: int, parameter: str, value: str):
