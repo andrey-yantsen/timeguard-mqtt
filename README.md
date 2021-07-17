@@ -41,6 +41,7 @@ Start the program using docker:
 docker run -d --name timeguard-mqtt \
   --restart unless-stopped \
   -p 9997:9997/udp \
+  -e TZ=Europe/London \
   ghcr.io/andrey-yantsen/timeguard-mqtt:main \
   --debug \
   --mask
