@@ -32,7 +32,7 @@ class WorkMode(EnumBase):
 class MessageType(EnumBase):
     PING = 0
     UNKNOWN1 = 1
-    INIT = 2
+    CODE_VERSION = 2
     UNKNOWN2 = 3
     UNKNOWN3 = 4
     SCHEDULE = 5
@@ -132,26 +132,26 @@ class GetHolidaySettingsRequest(Empty):
 
 @dataclass
 class InitializationSequence(DataclassMixin):
-    unknown: bytes = csfield(Hex(Bytes(13)))
+    code_version: str = csfield(PaddedString(13, 'ascii'))
 
 
 @dataclass
-class InitializationRequest(InitializationSequence):
+class ReportCodeVersionRequest(InitializationSequence):
     pass
 
 
 @dataclass
-class InitializationResponse(InitializationSequence):
+class ReportCodeVersionResponse(InitializationSequence):
     pass
 
 
 @dataclass
-class GetInitializationSequenceRequest(Empty):
+class GetCodeVersionRequest(Empty):
     pass
 
 
 @dataclass
-class GetInitializationSequenceResponse(InitializationSequence):
+class GetCodeVersionResponse(InitializationSequence):
     pass
 
 
@@ -285,10 +285,10 @@ class SetScheduleInfoResponse(GetScheduleInfoResponse):
 @dataclass
 class Payload(DataclassMixin):
     MESSAGE_TYPE_MAP = {
-        98: InitializationRequest,
-        178: InitializationResponse,
-        194: GetInitializationSequenceRequest,
-        82: GetInitializationSequenceResponse,
+        98: ReportCodeVersionRequest,
+        178: ReportCodeVersionResponse,
+        194: GetCodeVersionRequest,
+        82: GetCodeVersionResponse,
 
         96: PingRequest,
         240: PingResponse,
