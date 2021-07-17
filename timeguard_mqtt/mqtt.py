@@ -44,7 +44,7 @@ class Mqtt:
         parser.add_argument('--homeassistant-discovery', const='homeassistant',
                             action='store', default=None, nargs='?')
         parser.add_argument('--homeassistant-status-topic', default='homeassistant/status')
-        parser.add_argument('--device-online-timeout', default=120, type=int)
+        parser.add_argument('--device-online-timeout', default=50, type=int)
 
     def run(self):
         self._stop = False
