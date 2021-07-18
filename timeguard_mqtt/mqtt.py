@@ -144,12 +144,15 @@ class Mqtt:
 
     def handle_client_code_version(self, payload: protocol.Payload):
         if payload.message_flags & protocol.MessageFlags.IS_UPDATE_REQUEST == 0:
-            return
+            payload_params: protocol.GetCodeVersionResponse = payload.params
+            code_version: str = payload_params.code_version
+        else:
+            payload_params: protocol.ReportCodeVersionRequest = payload.params
+            code_version: str = payload_params.code_version
 
         device_id = payload.device_id
-        payload_params: protocol.ReportCodeVersionRequest = payload.params
 
-        self.update_device_state(device_id, 'code_version', payload_params.code_version)
+        self.update_device_state(device_id, 'code_version', code_version)
         self.report_state(device_id, 'code_version')
 
     def handle_protocol_data(self, data: protocol.Timeguard):
