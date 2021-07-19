@@ -56,10 +56,11 @@ class MessageFlags(FlagsEnumBase):
     RESERVED3 = 64
     RESERVED4 = 128
 
-    def server(write: bool = False) -> 'MessageFlags':
+    def server(write: bool = False, add_unknown_flag: bool = True) -> 'MessageFlags':
         return MessageFlags(
-            MessageFlags.IS_FROM_SERVER | MessageFlags.UNKNOWN1 |
-            MessageFlags.IS_UPDATE_REQUEST if write else 0
+            MessageFlags.IS_FROM_SERVER
+            | (MessageFlags.IS_UPDATE_REQUEST if write else 0)
+            | (MessageFlags.UNKNOWN1 if add_unknown_flag else 0)
         )
 
 
@@ -131,17 +132,17 @@ class GetHolidaySettingsRequest(Empty):
 
 
 @dataclass
-class InitializationSequence(DataclassMixin):
+class CodeVersion(DataclassMixin):
     code_version: str = csfield(PaddedString(13, 'ascii'))
 
 
 @dataclass
-class ReportCodeVersionRequest(InitializationSequence):
+class ReportCodeVersionRequest(CodeVersion):
     pass
 
 
 @dataclass
-class ReportCodeVersionResponse(InitializationSequence):
+class ReportCodeVersionResponse(CodeVersion):
     pass
 
 
@@ -151,7 +152,7 @@ class GetCodeVersionRequest(Empty):
 
 
 @dataclass
-class GetCodeVersionResponse(InitializationSequence):
+class GetCodeVersionResponse(CodeVersion):
     pass
 
 
@@ -377,6 +378,9 @@ class Timeguard(DataclassMixin):
     )
 
     footer: bytes = csfield(Hex(Const(b"\x2D\xDF")))
+
+    def is_from_server(self) -> bool:
+        return self.payload.message_flags & MessageFlags.IS_FROM_SERVER == MessageFlags.IS_FROM_SERVER
 
     def prepare(message_type: MessageType, message_flags: MessageFlags, device_id: int, message_id: int = 0xFFFFFFFF, payload_seq: typing.Optional[int] = None, payload_unknown=0x000000, **payload_params_kwargs) -> 'Timeguard':
         message_type_id = Payload.get_message_type_id(message_type, message_flags)

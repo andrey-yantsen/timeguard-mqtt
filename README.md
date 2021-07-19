@@ -1,6 +1,7 @@
 # timeguard-mqtt
 
-This Python module provides an open-source implementation of the device API used by the Timeguard's NTTWIFI and FSTWIFI devices.
+This Python module provides an open-source implementation of the device API used by the Timeguard's NTTWIFI and FSTWIFI
+devices.
 
 This implementation is based on the [investigation of the API](https://github.com/rjpearce/timeguard-supplymaster/issues/1).
 
@@ -12,26 +13,37 @@ It is currently in the early stages of development, contributions are always wel
 
 This software is un-official and is not endorsed or associated with Timeguard Limited in any way shape or form.
 
-This information used has been gathered legally using the NTTWIFI device, [Wireshark](https://www.wireshark.org) and [socat](http://www.dest-unreach.org/socat/).
+This information used has been gathered legally using the NTTWIFI device, [Wireshark](https://www.wireshark.org) and
+[socat](http://www.dest-unreach.org/socat/).
 
 This software is being developed to aid my own personal efforts to make the device work offline.
 
-The software is provided “as is”, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. in no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the softwares or the use or mis-used or other dealings in the software.
+The software is provided “as is”, without warranty of any kind, express or implied, including but not limited to the
+warranties of merchantability, fitness for a particular purpose and noninfringement. in no event shall the authors
+or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or
+otherwise, arising from, out of or in connection with the softwares or the use or mis-used or other dealings in the
+software.
 
 ## Features
 
-- [x] Act as a relay-proxy between the device and the server — blindly proxy data from one to another
-- [ ] Complete protocol awareness (**be advised** without this the program could brake your device on "write" commands)
-- [ ] Act as fallback proxy: the program is able to support some "basic" level of communication with the device and at the same time you can use the SupplyMaster application on your phone to control everything
-- [ ] Local server: app can do everything the server can (except for the support of mobile app, of course). You don't need internet all all to work with the timeswitch
+- [x] `--mode relay`: Act as a relay-proxy between the device and the server — blindly proxy data from one to another.
+Device will stop functioning without internet connection;
+- [ ] Complete protocol awareness (**be advised** without this the program could brake your device on "write" commands);
+- [x] `--mode fallback`: Act as fallback proxy: the program is able to support some "basic" level of communication
+with the device and at the same time you can use the SupplyMaster application on your phone to control everything.
+Device will continue to function without the internet connection;
+- [ ] `--mode local` Local server: app can do everything the server can (except for the support of mobile app, of
+course). You don't need internet at all to work with the timeswitch
+  - [x] Basic level (the program replies only to mandatory messages);
+  - [ ] Full — you can controll everything using only this program, including schedules and holidays.
 - [ ] Reporting state to MQTT
-  - [x] Basic info: switch status, load, advance mode, boost, uptime, work mode
-  - [ ] Holiday info
-  - [ ] Schedule-related info
+  - [x] Basic info: switch status, load, advance mode, boost, uptime, work mode;
+  - [ ] Holiday info;
+  - [ ] Schedule-related info.
 - [ ] Control over MQTT (**be advised** there's no guarantee that this will not break your device, use it at own risk)
-  - [x] Basic: boost, advance, work mode
-  - [ ] Holiday info
-  - [ ] Schedule
+  - [x] Basic: boost, advance, work mode;
+  - [ ] Holiday info;
+  - [ ] Schedule.
 
 ## How To
 
@@ -43,12 +55,14 @@ docker run -d --name timeguard-mqtt \
   -p 9997:9997/udp \
   -e TZ=Europe/London \
   ghcr.io/andrey-yantsen/timeguard-mqtt:main \
+  --mode fallback \
   --debug \
   --mask
 ```
 
 The options `--debug` and `--mask` are optional, but at the current stage there's now reasons to run the program 
-without them.
+without them. `--mode fallback` is optional too, but it's highly recommended to run the program with it — in this case
+your timeswitch will continue to function in case of unexpected issues with your internet connection.
 
 To send traffic to the relay you need to apply following rules to your router's firewall:
 
@@ -96,8 +110,8 @@ If everything set up correctly you will see messages like the following in when 
 [2021-07-13 21:18:11.555700] [192.168.86.1:9997 -> 31.193.128.139:9997] [parsing:success] fa d4 18 00 41 02 00 00 09 05 0c 00 a2 00 00 00 78 56 34 12 00 74 00 00 c8 73 ea 60 00 86 eb 60 1e be 2d df
 ```
 
-The most sensitive information here is the Device ID (you can see it as `78 56 34 12`) — because the program was run with `--mask` argument, it hides this
-information and you should be perfectly safe sharing the resulting logs.
+The most sensitive information here is the Device ID (you can see it as `78 56 34 12`) — because the program was run
+with `--mask` argument, it hides this information and you should be perfectly safe sharing the resulting logs.
 
 ## MQTT
 

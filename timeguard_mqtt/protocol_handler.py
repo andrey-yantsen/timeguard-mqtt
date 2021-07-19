@@ -9,6 +9,7 @@ import socket
 from queue import Queue, Empty as QueueEmptyError
 from time import sleep, time
 from copy import deepcopy
+from arrow import Arrow
 
 
 class ProtocolHandler:
@@ -109,7 +110,8 @@ class ProtocolHandler:
             else:
                 destination_ip, destination_port = self.get_client(parsed_data.payload.device_id)
 
-        self.print_debug(source_ip, source_port, destination_ip, destination_port, data, parsed_data)
+        if not parsed_data or not parsed_data.is_from_server() or self.args.mode == 'relay':
+            self.print_debug(source_ip, source_port, destination_ip, destination_port, data, parsed_data)
 
         if destination_ip is None:
             return []
@@ -123,11 +125,67 @@ class ProtocolHandler:
     def process_request_relay(self, destination_ip: str, destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
         return [(destination_ip, destination_port, protocol.format.build(data))]
 
-    def process_request_fallback(self, destination_ip: str, destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
-        return [(destination_ip, destination_port, protocol.format.build(data))]
+    def should_discard_server_query_in_fallback_mode(self, data: protocol.Timeguard) -> bool:
+        assert data.is_from_server()
 
-    def process_request_local(self, destination_ip: str, destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
-        return []
+        if data.payload.message_type == protocol.MessageType.PING:
+            return True
+
+        cv_flags_to_skip = protocol.MessageFlags.IS_UPDATE_REQUEST | protocol.MessageFlags.IS_SUCCESS
+        if data.payload.message_type == protocol.MessageType.CODE_VERSION \
+                and data.payload.message_flags & cv_flags_to_skip == cv_flags_to_skip:
+            return True
+
+        return False
+
+    def process_request_fallback(self, destination_ip: str, destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
+        ret = [(destination_ip, destination_port, protocol.format.build(data))]
+        if not data.is_from_server():
+            ret += self.process_request_local(destination_ip, destination_port, data)
+        elif self.should_discard_server_query_in_fallback_mode(data):
+            self.print_debug(self.CLOUDWARM_IP, 9997, 'void({})'.format(destination_ip),
+                             destination_port, protocol.format.build(data), data)
+            ret = []
+
+        return ret
+
+    def process_request_local(self, _destination_ip: str, _destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
+        ret = []
+
+        destination_ip, destination_port = self.get_client(data.payload.device_id)
+
+        if data.payload.message_type == protocol.MessageType.CODE_VERSION \
+                and data.payload.message_flags & protocol.MessageFlags.IS_UPDATE_REQUEST == protocol.MessageFlags.IS_UPDATE_REQUEST:
+            response = protocol.Timeguard.prepare(
+                protocol.MessageType.CODE_VERSION,
+                protocol.MessageFlags.server(True, False) | protocol.MessageFlags.IS_SUCCESS,
+                data.payload.device_id,
+                payload_seq=0xFF,
+                code_version=data.payload.params.code_version
+            )
+            ret += [(
+                destination_ip,
+                destination_port,
+                protocol.format.build(response)
+            )]
+        elif data.payload.message_type == protocol.MessageType.PING:
+            response = protocol.Timeguard.prepare(
+                protocol.MessageType.PING,
+                protocol.MessageFlags.server(True) | protocol.MessageFlags.IS_SUCCESS,
+                data.payload.device_id,
+                payload_seq=0xFF,
+                now=Arrow.now()
+            )
+            ret += [(
+                destination_ip,
+                destination_port,
+                protocol.format.build(response)
+            )]
+
+        for (device_ip, device_port, data_raw) in ret:
+            self.print_debug('internal', 9997, device_ip, device_port, data_raw, protocol.format.parse(data_raw))
+
+        return ret
 
     def store_client(self, device_id: int, ip: str, port: int):
         if device_id not in self.device_to_ip_map:
@@ -149,7 +207,7 @@ class ProtocolHandler:
                         data.payload.seq = (data.payload.seq + 1) % 255
             self._waiting_for_response[data.payload.seq] = {
                 'queue_time': time(),
-                'resend_after': time() + 1,
+                'resend_after': time() + 2,
                 'data': data,
             }
 
@@ -204,13 +262,13 @@ class ProtocolHandler:
             try:
                 messages_to_remove = []
                 for seq, waiting_config in self._waiting_for_response.items():
-                    if waiting_config['resend_after'] - waiting_config['queue_time'] >= 5:
+                    if waiting_config['resend_after'] - waiting_config['queue_time'] >= 15:
                         messages_to_remove.append(seq)
                         continue
 
                     if waiting_config['resend_after'] <= time():
                         rewritten_data += self.build_requests_from_protocol(waiting_config['data'], True)
-                        self._waiting_for_response[seq]['resend_after'] = time() + 1
+                        self._waiting_for_response[seq]['resend_after'] = time() + 2
 
                 for seq in messages_to_remove:
                     del self._waiting_for_response[seq]
