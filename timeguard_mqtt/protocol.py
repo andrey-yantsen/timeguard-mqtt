@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 import typing
 from arrow.arrow import Arrow
-from construct import Computed, Const, Int8ul, Int16ul, Int32ul, this, Switch, Bytes, Hex, HexDump, ExprValidator, BitsInteger, Flag, ByteSwapped, RestreamData, Timestamp, Rebuild, obj_, PaddedString
+from construct import Computed, Const, Int8ul, Int16ul, Int32ul, this, Switch, Bytes, Hex, HexDump, ExprValidator
+from construct import BitsInteger, Flag, ByteSwapped, RestreamData, Timestamp, Rebuild, obj_, PaddedString, Checksum
 from construct_typed import DataclassMixin, DataclassBitStruct, DataclassStruct, EnumBase, FlagsEnumBase, TFlagsEnum, TEnum, csfield
 import crcmod
 from random import randrange
@@ -367,12 +368,10 @@ class Timeguard(DataclassMixin):
     payload: Payload = csfield(RestreamData(this.payload_raw, DataclassStruct(Payload)))
     checksum: int = csfield(
         Hex(
-            Rebuild(
-                ExprValidator(
-                    Int16ul,
-                    lambda obj, ctx: obj == crc16_xmodem(ctx.payload_raw)
-                ),
-                lambda ctx: crc16_xmodem(ctx.payload_raw)
+            Checksum(
+                Int16ul,
+                lambda data: crc16_xmodem(data),
+                this.payload_raw
             )
         )
     )
