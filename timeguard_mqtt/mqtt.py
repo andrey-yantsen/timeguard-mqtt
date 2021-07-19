@@ -142,6 +142,15 @@ class Mqtt:
         self.report_state(device_id, 'uptime', 'switch_state', 'load_detected', 'advance_mode',
                           'load_was_detected_previously', 'boost', 'work_mode', 'boost_duration_left')
 
+        # Request code_version from the device if it's unknown
+        if 'code_version' not in self._device_state[device_id]['parameters']:
+            data = protocol.Timeguard.prepare(
+                protocol.MessageType.CODE_VERSION,
+                protocol.MessageFlags.server(False),
+                device_id
+            )
+            self.mqtt_events_queue.put(data)
+
     def handle_client_code_version(self, payload: protocol.Payload):
         if payload.message_flags & protocol.MessageFlags.IS_UPDATE_REQUEST == 0:
             payload_params: protocol.GetCodeVersionResponse = payload.params
