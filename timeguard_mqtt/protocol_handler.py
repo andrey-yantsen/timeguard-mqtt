@@ -150,6 +150,9 @@ class ProtocolHandler:
     def process_request_local(self, _destination_ip: str, _destination_port: int, data: protocol.Timeguard) -> List[Tuple[str, int, bytes]]:
         ret = []
 
+        if data.is_from_server():
+            return []
+
         destination_ip, destination_port = self.get_client(data.payload.device_id)
 
         if data.payload.message_type == protocol.MessageType.CODE_VERSION \
