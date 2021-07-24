@@ -141,6 +141,9 @@ class ProtocolHandler:
             self.print_debug(self.CLOUDWARM_IP, 9997, 'void({})'.format(destination_ip),
                              destination_port, protocol.format.build(data), data)
             ret = []
+        else:
+            self.print_debug(self.CLOUDWARM_IP, 9997, destination_ip,
+                             destination_port, protocol.format.build(data), data)
 
         return ret
 
@@ -176,6 +179,9 @@ class ProtocolHandler:
                 destination_port,
                 protocol.format.build(response)
             )]
+        else:
+            self.print_debug(self.CLOUDWARM_IP, 9997, 'void({})'.format(destination_ip),
+                             destination_port, protocol.format.build(data), data)
 
         for (device_ip, device_port, data_raw) in ret:
             self.print_debug('internal', 9997, device_ip, device_port, data_raw, protocol.format.parse(data_raw))
