@@ -2,8 +2,8 @@ import argparse
 from queue import Queue, Empty as QueueEmptyError
 from time import sleep, time
 import paho.mqtt.client as mqtt
-from typing import Optional, List
-from . import protocol
+from typing import Optional
+from . import protocol, log
 import json
 from datetime import datetime
 from dateutil.relativedelta import relativedelta, SU
@@ -71,8 +71,7 @@ class Mqtt:
             except QueueEmptyError:
                 sleep(0.1)
             except:
-                import traceback
-                traceback.print_exc()
+                log.exception('Failed to process network message')
 
             devices_to_delete = []
             for device_id, state in self._device_state.items():
@@ -233,7 +232,7 @@ class Mqtt:
                     'unique_id': self.discovery_unique_id(device_id, sensor_id),
                     'availability': [
                         {
-                            # TODO: seems like topics with ~ aren't working here, need to double-check and report to HA
+                            # `~` isn't working here, https://github.com/home-assistant/core/issues/53252
                             'topic': self.device_topic(device_id, 'lwt'),
                             'payload_available': 'online',
                             'payload_not_available': 'offline',
@@ -326,8 +325,7 @@ class Mqtt:
             try:
                 getattr(self, on_message_callback_name)(client, userdata, msg, int(device_id, 16))
             except:
-                import traceback
-                traceback.print_exc()
+                log.exception('Failed to handle MQTT message')
         elif msg.topic == self.args.homeassistant_status_topic and msg.payload == b'online':
             # We need to repeat non-retainable topics when HASS restarted
             client.publish(self.topic('lwt'), payload='online', qos=1)

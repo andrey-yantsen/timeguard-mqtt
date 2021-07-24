@@ -1,15 +1,15 @@
 import argparse
+import binascii
 from datetime import datetime
 from binascii import hexlify
 from typing import List, Tuple, Optional
-
-from construct import debug
 from . import protocol
 import socket
 from queue import Queue, Empty as QueueEmptyError
 from time import sleep, time
 from copy import deepcopy
 from arrow import Arrow
+from . import log
 
 
 class ProtocolHandler:
@@ -28,8 +28,6 @@ class ProtocolHandler:
                             help='Desired behaviour of the program. Relay — simply forward requests between the '
                             + 'server and the device (default). Fallback — send responses to some of the commands, '
                             + 'like PING and INIT. Local — do not anything to the remote server.', default='relay')
-        parser.add_argument('--debug', '-d', help='Display communication data and other debug info.',
-                            action='store_true')
         parser.add_argument('--print-parsed-data', '-p',
                             help='Print the internal sturctures to stdout.', action='store_true')
         parser.add_argument('--mask', '-s', help='Mask device ID and CRC32 in the debug output.', action='store_true')
@@ -43,8 +41,7 @@ class ProtocolHandler:
 
     def print_bytes(source_ip: str, source_port: int, destination_ip: Optional[str], destination_port: Optional[int],
                     parsing_result: str, data: bytes):
-        print("[{}] [{}:{} -> {}:{}] [parsing:{}] {}".format(
-            datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+        log.debug("[{}:{} -> {}:{}] [parsing:{}] {}".format(
             source_ip,
             source_port,
             destination_ip,
@@ -84,11 +81,10 @@ class ProtocolHandler:
                                                 destination_port, parsing_result, debug_data)
 
                 if self.args.print_parsed_data and debug_obj:
-                    print(debug_obj)
+                    log.debug(debug_obj)
         except:
             parsing_result = 'failed_debug'
-            import traceback
-            traceback.print_exc()
+            log.exception('Failed to prepare debug data')
 
     def relay_callback(self, source_ip: str, source_port: int, data: bytes) -> List[Tuple[bool, bytes]]:
         is_from_client = source_ip != self.CLOUDWARM_IP
@@ -96,8 +92,7 @@ class ProtocolHandler:
         try:
             parsed_data = protocol.format.parse(data)
         except:
-            import traceback
-            traceback.print_exc()
+            log.exception('Failed to parse data: %s', binascii.hexlify(data))
 
         destination_ip, destination_port = None, None
         if parsed_data:
@@ -197,7 +192,7 @@ class ProtocolHandler:
     def add_command_to_waiting_list(self, data: protocol.Timeguard) -> protocol.Timeguard:
         if 0 <= data.payload.seq < 0xFF:
             if len(self._waiting_for_response) >= 0xFE:
-                print('HOW????')
+                log.error('Too many messages are waiting for confirmation')
                 return []
 
             if data.payload.seq in self._waiting_for_response:
@@ -247,8 +242,7 @@ class ProtocolHandler:
             except QueueEmptyError:
                 pass
             except Exception:
-                import traceback
-                traceback.print_exc()
+                log.exception('Error while processing a message from MQTT')
 
             try:
                 data, fromaddr = sock.recvfrom(1024)
@@ -256,8 +250,7 @@ class ProtocolHandler:
             except BlockingIOError:
                 pass
             except Exception:
-                import traceback
-                traceback.print_exc()
+                log.exception('Error while processing a message from UDP')
 
             try:
                 messages_to_remove = []
@@ -273,15 +266,13 @@ class ProtocolHandler:
                 for seq in messages_to_remove:
                     del self._waiting_for_response[seq]
             except:
-                import traceback
-                traceback.print_exc()
+                log.exception('Failed to process resending queue')
 
             for (destination_ip, destination_port, data) in rewritten_data:
                 try:
                     sock.sendto(data, (destination_ip, destination_port))
                 except:
-                    import traceback
-                    traceback.print_exc()
+                    log.exception('Failed to send the data')
 
             if not rewritten_data:
                 sleep(0.1)
