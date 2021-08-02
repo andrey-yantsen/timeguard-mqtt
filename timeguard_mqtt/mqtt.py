@@ -244,7 +244,7 @@ class Mqtt:
                         },
                     ],
                     'availability_mode': 'all',
-                    'name': name,
+                    'name': 'TimeGuard time-switch #{:08X} {}'.format(int(device_id), name),
                     'state_topic': '~/{}'.format(sensor_id),
                     'device': device,
                 } | kwargs
