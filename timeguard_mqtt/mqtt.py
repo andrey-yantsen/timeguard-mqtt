@@ -142,7 +142,7 @@ class Mqtt:
                           'load_was_detected_previously', 'boost', 'work_mode', 'boost_duration_left')
 
         # Request code_version from the device if it's unknown
-        if 'code_version' not in self._device_state[device_id]['parameters']:
+        if not self.has_parameter(device_id, 'code_version'):
             data = protocol.Timeguard.prepare(
                 protocol.MessageType.CODE_VERSION,
                 protocol.MessageFlags.server(False),
@@ -150,18 +150,91 @@ class Mqtt:
             )
             self.mqtt_events_queue.put(data)
 
+        if not self.has_parameter(device_id, 'active_schedule'):
+            data = protocol.Timeguard.prepare(
+                protocol.MessageType.ACTIVE_SCHEDULE,
+                protocol.MessageFlags.server(False),
+                device_id
+            )
+            self.mqtt_events_queue.put(data)
+
+        if not self.has_all_schedules(device_id):
+            for schedule_id in range(0, protocol.MAX_SCHEDULES_COUNT):
+                data = protocol.Timeguard.prepare(
+                    protocol.MessageType.SCHEDULE,
+                    protocol.MessageFlags.server(False),
+                    device_id,
+                    schedule_id=schedule_id,
+                )
+                self.mqtt_events_queue.put(data)
+
     def handle_client_code_version(self, payload: protocol.Payload):
         if payload.message_flags & protocol.MessageFlags.IS_UPDATE_REQUEST == 0:
             payload_params: protocol.GetCodeVersionResponse = payload.params
-            code_version: str = payload_params.code_version
         else:
             payload_params: protocol.ReportCodeVersionRequest = payload.params
-            code_version: str = payload_params.code_version
+
+        code_version: str = payload_params.code_version
 
         device_id = payload.device_id
 
         self.update_device_state(device_id, 'code_version', code_version)
         self.report_state(device_id, 'code_version')
+
+    def update_active_schedule(self, device_id: int):
+        if not self.has_parameter(device_id, 'active_schedule_id'):
+            return
+
+        self.update_device_state(
+            device_id,
+            'active_schedule',
+            self.get_schedule_name(device_id, self._device_state[device_id]['parameters']['active_schedule_id'])
+        )
+
+    def get_schedule_name(self, device_id: int, schedule_id: int) -> str:
+        return '#{}: {}'.format(schedule_id + 1, self._device_state[device_id]['schedules'][schedule_id].name)
+
+    def handle_client_schedule(self, payload: protocol.Payload):
+        if payload.message_flags & protocol.MessageFlags.IS_UPDATE_REQUEST == 0:
+            payload_params: protocol.GetScheduleInfoResponse = payload.params
+        else:
+            payload_params: protocol.SetScheduleInfoResponse = payload.params
+
+        device_id = payload.device_id
+
+        self.update_schedule(device_id, payload_params)
+
+        if self.has_all_schedules(device_id):
+            schedules = []
+            for i in range(0, protocol.MAX_SCHEDULES_COUNT):
+                schedule = self._device_state[device_id]['schedules'][i]
+                if schedule.name:
+                    schedules += [self.get_schedule_name(device_id, i)]
+
+            self.configure_hass_sensor(device_id, 'select', 'active_schedule', 'Active schedule',
+                                       command_topic='~/active_schedule/set', options=schedules)
+
+            if self.has_parameter(device_id, 'active_schedule_id'):
+                self.update_active_schedule(device_id)
+
+        self.report_state(device_id, 'active_schedule')
+
+    def handle_client_active_schedule(self, payload: protocol.Payload):
+        if payload.message_flags & protocol.MessageFlags.IS_UPDATE_REQUEST == 0:
+            payload_params: protocol.GetCurrentScheduleResponse = payload.params
+        else:
+            payload_params: protocol.SetCurrentScheduleResponse = payload.params
+
+        active_schedule_id: int = payload_params.schedule_id
+
+        device_id = payload.device_id
+
+        self.update_device_state(device_id, 'active_schedule_id', active_schedule_id)
+
+        if self.has_all_schedules(device_id):
+            self.update_active_schedule(device_id)
+
+        self.report_state(device_id, 'active_schedule_id', 'active_schedule')
 
     def handle_protocol_data(self, data: protocol.Timeguard):
         payload = data.payload
@@ -170,6 +243,7 @@ class Mqtt:
             if device_id not in self._device_state:
                 self._device_state[device_id] = {
                     'parameters': {},
+                    'schedules': {},
                 }
                 self.setup_device(device_id)
                 if self.args.homeassistant_discovery:
@@ -190,6 +264,15 @@ class Mqtt:
             if params_to_report and key not in params_to_report:
                 continue
             self.client.publish(self.device_topic(device_id, key), payload=value, qos=1)
+
+    def has_all_schedules(self, device_id: int) -> bool:
+        return len(self._device_state[device_id]['schedules']) == protocol.MAX_SCHEDULES_COUNT
+
+    def update_schedule(self, device_id: int, schedule: protocol.GetScheduleInfoResponse):
+        self._device_state[device_id]['schedules'][schedule.schedule_id] = schedule
+
+    def has_parameter(self, device_id: int, parameter: str) -> bool:
+        return parameter in self._device_state[device_id]['parameters']
 
     def update_device_state(self, device_id: int, parameter: str, value: str):
         self._device_state[device_id]['parameters'][parameter] = value
@@ -278,6 +361,32 @@ class Mqtt:
 
     def on_message_set_raw_command(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage, device_id: int):
         self.mqtt_events_queue.put(protocol.format.parse(bytes.fromhex(msg.payload.decode('ascii'))))
+
+    def on_message_set_active_schedule(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage, device_id: int):
+        schedule_name = msg.payload.decode('utf-8')
+
+        if len(schedule_name) < 3:
+            raise Exception('Unexpected schedule name: {}'.format(schedule_name))
+
+        if schedule_name[0] != '#' or not schedule_name[1].isdigit() or schedule_name[2] != ':' \
+                or not (0 < int(schedule_name[1]) <= protocol.MAX_SCHEDULES_COUNT):
+            raise Exception('Unexpected schedule name format: {}'.format(schedule_name))
+
+        data = protocol.Timeguard.prepare(
+            protocol.MessageType.ACTIVE_SCHEDULE,
+            protocol.MessageFlags.server(True),
+            device_id,
+            schedule_id=int(schedule_name[1]) - 1
+        )
+        self.mqtt_events_queue.put(data)
+
+        # This is needed to keep Cloudward server in sync with the device
+        data = protocol.Timeguard.prepare(
+            protocol.MessageType.ACTIVE_SCHEDULE,
+            protocol.MessageFlags.server(False),
+            device_id
+        )
+        self.mqtt_events_queue.put(data)
 
     def on_message_set_boost(self, client: mqtt.Client, userdata, msg: mqtt.MQTTMessage, device_id: int):
         boost = self.BOOST_MAP_REVERSE.get(msg.payload.decode('utf-8'))

@@ -10,6 +10,8 @@ from random import randrange
 
 crc16_xmodem = crcmod.mkCrcFun(0x11021, rev=False, initCrc=0x0000, xorOut=0x0000)
 
+MAX_SCHEDULES_COUNT = 6
+
 
 class BoostState(EnumBase):
     OFF = 0
@@ -381,7 +383,8 @@ class Timeguard(DataclassMixin):
     def is_from_server(self) -> bool:
         return self.payload.message_flags & MessageFlags.IS_FROM_SERVER == MessageFlags.IS_FROM_SERVER
 
-    def prepare(message_type: MessageType, message_flags: MessageFlags, device_id: int, message_id: int = 0xFFFFFFFF, payload_seq: typing.Optional[int] = None, payload_unknown=0x000000, **payload_params_kwargs) -> 'Timeguard':
+    def prepare(message_type: MessageType, message_flags: MessageFlags, device_id: int, message_id: int = 0xFFFFFFFF,
+                payload_seq: typing.Optional[int] = None, payload_unknown=0x000000, **payload_params_kwargs) -> 'Timeguard':
         message_type_id = Payload.get_message_type_id(message_type, message_flags)
         payload_params_class = Payload.MESSAGE_TYPE_MAP.get(message_type_id)
 

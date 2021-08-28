@@ -27,23 +27,29 @@ software.
 ## Features
 
 - [x] `--mode relay`: Act as a relay-proxy between the device and the server — blindly proxy data from one to another.
-Device will stop functioning without internet connection;
-- [ ] Complete protocol awareness (**be advised** without this the program could brake your device on "write" commands);
+Device will stop functioning without internet connection
+- [ ] Complete protocol awareness (**be advised** without this the program could brake your device on "write" commands)
 - [x] `--mode fallback`: Act as fallback proxy: the program is able to support some "basic" level of communication
 with the device and at the same time you can use the SupplyMaster application on your phone to control everything.
-Device will continue to function without the internet connection;
+Device will continue to function without the internet connection
 - [ ] `--mode local` Local server: app can do everything the server can (except for the support of mobile app, of
 course). You don't need internet at all to work with the timeswitch
-  - [x] Basic level (the program replies only to mandatory messages);
-  - [ ] Full — you can controll everything using only this program, including schedules and holidays.
+  - [x] Basic level (the program replies only to mandatory messages)
+  - [ ] Full — you can controll everything using only this program, including schedules and holidays
 - [ ] Reporting state to MQTT
-  - [x] Basic info: switch status, load, advance mode, boost, uptime, work mode;
-  - [ ] Holiday info;
-  - [ ] Schedule-related info.
+  - [x] Basic info: switch status, load, advance mode, boost, uptime, work mode
+  - [ ] Holiday info
+  - [ ] Schedule-related info
+	- [x] Name and the ID of currently selected schedule
+	- [ ] Next on/off time
+	- [ ] All the details about a schedule (time, repetitions)
 - [ ] Control over MQTT (**be advised** there's no guarantee that this will not break your device, use it at own risk)
-  - [x] Basic: boost, advance, work mode;
-  - [ ] Holiday info;
-  - [ ] Schedule.
+  - [x] Basic: boost, advance, work mode
+  - [ ] Holiday info
+  - [ ] Schedule
+	- [x] Name and the ID of currently selected schedule
+	- [ ] Next on/off time
+	- [ ] All the details about a schedule (time, repetitions)
 
 ## How To
 
