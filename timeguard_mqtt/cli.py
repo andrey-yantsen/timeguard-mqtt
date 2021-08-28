@@ -14,7 +14,7 @@ def run():
     log.addHandler(lh)
     log.setLevel(logging.INFO)
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='TimeGueard time-switches AntiCloud')
     parser.add_argument('--debug', '-d', help='Display communication data and other debug info.',
                         action='store_true')
     protocol_params_parser = parser.add_argument_group('Protocol', 'Protocol-related parameters')
