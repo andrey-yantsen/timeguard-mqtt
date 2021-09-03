@@ -311,9 +311,6 @@ class Mqtt:
         self.configure_hass_sensor(device_id, 'select', 'work_mode', 'Work mode',
                                    command_topic='~/work_mode/set', options=list(self.WORK_MODE_MAP.values()))
 
-        self.client.publish(self.topic('lwt'), payload='online', qos=1)
-        self.client.publish(self.device_topic(device_id, 'lwt'), payload='online', qos=1)
-
     def configure_hass_sensor(self, device_id: int, sensor_type: str, sensor_id: str, name: str, **kwargs):
         device = {
             'identifiers': ['tg:{}'.format(device_id)],
@@ -348,6 +345,9 @@ class Mqtt:
             qos=1,
             retain=True
         )
+
+        self.client.publish(self.topic('lwt'), payload='online', qos=1)
+        self.client.publish(self.device_topic(device_id, 'lwt'), payload='online', qos=1)
 
     def discovery_unique_id(self, device_id: int, sensor: str) -> str:
         return 'timeguard_{}_{}'.format(self.format_device(device_id), sensor)
