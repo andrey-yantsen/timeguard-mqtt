@@ -236,6 +236,19 @@ class Mqtt:
 
         self.report_state(device_id, 'active_schedule_id', 'active_schedule')
 
+    def handle_client_update_schedule_name(self, payload: protocol.Payload):
+        payload_params: protocol.SetScheduleNameResponse = payload.params
+        schedule_id: int = payload_params.schedule_id
+        device_id = payload.device_id
+
+        data = protocol.Timeguard.prepare(
+            protocol.MessageType.SCHEDULE,
+            protocol.MessageFlags.server(False),
+            device_id,
+            schedule_id=schedule_id,
+        )
+        self.mqtt_events_queue.put(data)
+
     def handle_protocol_data(self, data: protocol.Timeguard):
         payload = data.payload
         device_id = payload.device_id
