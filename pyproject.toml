@@ -14,7 +14,7 @@ crcmod = "^1.7"
 arrow = "^1.2.0"
 
 [tool.poetry.dev-dependencies]
-autopep8 = "^1.5.7"
+autopep8 = "^1.6.0"
 
 [tool.poetry.scripts]
 timeguard-mqtt = 'timeguard_mqtt.cli:run'
