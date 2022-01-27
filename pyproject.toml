@@ -11,7 +11,7 @@ paho-mqtt = "^1.6.1"
 construct = "^2.10.67"
 construct-typing = "^0.5.2"
 crcmod = "^1.7"
-arrow = "^1.2.1"
+arrow = "^1.2.2"
 
 [tool.poetry.dev-dependencies]
 autopep8 = "^1.6.0"
