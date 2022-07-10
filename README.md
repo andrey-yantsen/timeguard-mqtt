@@ -130,7 +130,7 @@ To enable MQTT-communication use the following options:
 * `--mqtt-password`
 
 If you want to enable auto-discovery for home-assistant, you also need to pass the root discovery topic using 
-`--homeassistant-discovery` and home-assistant's status topic with `--homeassistant-status-topic`.
+`--homeassistant-discovery`. If your home-assistant's MQTT configuration doesn't use the standard status topic of `homeassistant/status`, pass your custom one with `--homeassistant-status-topic`.
 
 After that you will see the following set of topics, for each device:
 
