@@ -1,3 +1,3 @@
 import logging
 
-log = logging.getLogger('timeguard_mqtt')
+log = logging.getLogger("timeguard_mqtt")

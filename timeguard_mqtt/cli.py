@@ -1,12 +1,13 @@
-from .mqtt import Mqtt
-from .protocol_handler import ProtocolHandler
 import argparse
-import threading
+import logging
 from queue import Queue
 import signal
-import logging
 import sys
+import threading
+
 from . import log
+from .mqtt import Mqtt
+from .protocol_handler import ProtocolHandler
 
 
 def run():
@@ -14,22 +15,28 @@ def run():
     log.addHandler(lh)
     log.setLevel(logging.INFO)
 
-    parser = argparse.ArgumentParser(description='TimeGueard time-switches AntiCloud')
-    parser.add_argument('--debug', '-d', help='Display communication data and other debug info.',
-                        action='store_true')
-    protocol_params_parser = parser.add_argument_group('Protocol', 'Protocol-related parameters')
+    parser = argparse.ArgumentParser(description="TimeGueard time-switches AntiCloud")
+    parser.add_argument(
+        "--debug",
+        "-d",
+        help="Display communication data and other debug info.",
+        action="store_true",
+    )
+    protocol_params_parser = parser.add_argument_group(
+        "Protocol", "Protocol-related parameters"
+    )
     ProtocolHandler.prepare_argparse(protocol_params_parser)
-    mqtt_params_parser = parser.add_argument_group('MQTT', 'MQTT-related parameters')
+    mqtt_params_parser = parser.add_argument_group("MQTT", "MQTT-related parameters")
     Mqtt.prepare_argparse(mqtt_params_parser)
     args = parser.parse_args()
 
     if args.debug:
-        log_format = '[%(asctime)s] [%(levelname)s] [%(name)s] [%(module)s:%(lineno)d] %(message)s'
+        log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] [%(module)s:%(lineno)d] %(message)s"
         log.setLevel(logging.DEBUG)
     else:
-        log_format = '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s'
+        log_format = "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
 
-    lh.setFormatter(logging.Formatter(log_format, datefmt='%d/%m/%Y %H:%M:%S'))
+    lh.setFormatter(logging.Formatter(log_format, datefmt="%d/%m/%Y %H:%M:%S"))
 
     network_events_queue = Queue(maxsize=0)
     mqtt_events_queue = Queue(maxsize=0)
@@ -57,5 +64,5 @@ def run():
         termination()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()

@@ -1,12 +1,41 @@
 from dataclasses import dataclass
-import typing
-from arrow.arrow import Arrow
-from construct import Computed, Const, Int8ul, Int16ul, Int32ul, this, Switch, Bytes, Hex, HexDump, ExprValidator
-from construct import BitsInteger, Flag, ByteSwapped, RestreamData, Timestamp, Rebuild, obj_, PaddedString, Checksum
-from construct_typed import DataclassMixin, DataclassBitStruct, DataclassStruct, EnumBase, FlagsEnumBase, TFlagsEnum, TEnum, csfield
-import crcmod
 from random import randrange
+import typing
 
+from arrow.arrow import Arrow
+from construct import (
+    BitsInteger,
+    Bytes,
+    ByteSwapped,
+    Checksum,
+    Computed,
+    Const,
+    ExprValidator,
+    Flag,
+    Hex,
+    HexDump,
+    Int8ul,
+    Int16ul,
+    Int32ul,
+    PaddedString,
+    Rebuild,
+    RestreamData,
+    Switch,
+    Timestamp,
+    obj_,
+    this,
+)
+from construct_typed import (
+    DataclassBitStruct,
+    DataclassMixin,
+    DataclassStruct,
+    EnumBase,
+    FlagsEnumBase,
+    TEnum,
+    TFlagsEnum,
+    csfield,
+)
+import crcmod
 
 crc16_xmodem = crcmod.mkCrcFun(0x11021, rev=False, initCrc=0x0000, xorOut=0x0000)
 
@@ -59,7 +88,7 @@ class MessageFlags(FlagsEnumBase):
     RESERVED3 = 64
     RESERVED4 = 128
 
-    def server(write: bool = False, add_unknown_flag: bool = True) -> 'MessageFlags':
+    def server(write: bool = False, add_unknown_flag: bool = True) -> "MessageFlags":
         return MessageFlags(
             MessageFlags.IS_FROM_SERVER
             | (MessageFlags.IS_UPDATE_REQUEST if write else 0)
@@ -76,10 +105,14 @@ class SwitchState(EnumBase):
 class Boost(DataclassMixin):
     boost_type: BoostState = csfield(TEnum(BitsInteger(2), BoostState))
     minutes_from_sunday: int = csfield(BitsInteger(14))
-    duration_in_minutes: int = csfield(Computed(
-        lambda ctx: 60 if ctx.boost_type == 1 else 120 if ctx.boost_type == 2 else 0
-    ))
-    expected_finish_time: int = csfield(Computed(this.minutes_from_sunday + this.duration_in_minutes))
+    duration_in_minutes: int = csfield(
+        Computed(
+            lambda ctx: 60 if ctx.boost_type == 1 else 120 if ctx.boost_type == 2 else 0
+        )
+    )
+    expected_finish_time: int = csfield(
+        Computed(this.minutes_from_sunday + this.duration_in_minutes)
+    )
 
 
 @dataclass
@@ -136,7 +169,7 @@ class GetHolidaySettingsRequest(Empty):
 
 @dataclass
 class CodeVersion(DataclassMixin):
-    code_version: str = csfield(PaddedString(13, 'ascii'))
+    code_version: str = csfield(PaddedString(13, "ascii"))
 
 
 @dataclass
@@ -225,7 +258,7 @@ class SetCurrentScheduleResponse(SetCurrentScheduleRequest):
 @dataclass
 class SetScheduleNameRequest(DataclassMixin):
     schedule_id: int = csfield(Int8ul)
-    name: str = csfield(PaddedString(50, 'utf-8'))
+    name: str = csfield(PaddedString(50, "utf-8"))
 
 
 @dataclass
@@ -273,7 +306,7 @@ class GetScheduleInfoResponse(DataclassMixin):
     schedule4: Schedule = csfield(DataclassStruct(Schedule))
     schedule5: Schedule = csfield(DataclassStruct(Schedule))
     schedule6: Schedule = csfield(DataclassStruct(Schedule))
-    name: str = csfield(PaddedString(50, 'utf-8'))
+    name: str = csfield(PaddedString(50, "utf-8"))
 
 
 @dataclass
@@ -293,61 +326,65 @@ class Payload(DataclassMixin):
         178: ReportCodeVersionResponse,
         194: GetCodeVersionRequest,
         82: GetCodeVersionResponse,
-
         96: PingRequest,
         240: PingResponse,
-
         237: BoostRequest,
         125: BoostResponse,
-
         236: AdvanceModeRequest,
         124: AdvanceModeResponse,
-
         232: SetWorkmodeRequest,
         120: SetWorkmodeResponse,
-
         233: SetHolidayRequest,
         121: SetHolidayResponse,
-
         201: GetHolidaySettingsRequest,
         89: GetHolidaySettingsResponse,
-
         203: GetCurrentScheduleRequest,
         91: GetCurrentScheduleResponse,
-
         235: SetCurrentScheduleRequest,
         123: SetCurrentScheduleResponse,
-
         234: SetScheduleNameRequest,
         122: SetScheduleNameResponse,
-
         197: GetScheduleInfoRequest,
         85: GetScheduleInfoResponse,
-
         229: SetScheduleInfoRequest,
         117: SetScheduleInfoResponse,
     }
 
-    message_type: MessageType = csfield(TEnum(ExprValidator(Int8ul, obj_ & 0b11110000 == 0), MessageType))
-    message_flags: MessageFlags = csfield(TFlagsEnum(ExprValidator(Int8ul, obj_ & 0b11110000 == 0), MessageFlags))
+    message_type: MessageType = csfield(
+        TEnum(ExprValidator(Int8ul, obj_ & 0b11110000 == 0), MessageType)
+    )
+    message_flags: MessageFlags = csfield(
+        TFlagsEnum(ExprValidator(Int8ul, obj_ & 0b11110000 == 0), MessageFlags)
+    )
     message_type_id: int = csfield(
-        Computed(lambda ctx: Payload.get_message_type_id(ctx.message_type, ctx.message_flags)))
+        Computed(
+            lambda ctx: Payload.get_message_type_id(ctx.message_type, ctx.message_flags)
+        )
+    )
     params_size: int = csfield(
         Rebuild(
             Int16ul,
-            lambda ctx: len(DataclassStruct(ctx.params.__class__).build(ctx.params)
-                            if isinstance(ctx.params, DataclassMixin) else ctx.params)
+            lambda ctx: len(
+                DataclassStruct(ctx.params.__class__).build(ctx.params)
+                if isinstance(ctx.params, DataclassMixin)
+                else ctx.params
+            ),
         )
     )
     seq: int = csfield(Int8ul)
     unknown: int = csfield(Hex(Bytes(3)))
     device_id: int = csfield(Hex(Int32ul))
-    params: typing.Any = csfield(Switch(this.message_type_id, {
-        key: DataclassStruct(value)
-        for key, value in MESSAGE_TYPE_MAP.items()
-    }, default=HexDump(Bytes(this.params_size))))
+    params: typing.Any = csfield(
+        Switch(
+            this.message_type_id,
+            {key: DataclassStruct(value) for key, value in MESSAGE_TYPE_MAP.items()},
+            default=HexDump(Bytes(this.params_size)),
+        )
+    )
 
-    def get_message_type_id(message_type: MessageType, message_flags: MessageFlags) -> int:
+    def get_message_type_id(
+        message_type: MessageType, message_flags: MessageFlags
+    ) -> int:
         return message_type + (message_flags << 4)
 
 
@@ -355,41 +392,46 @@ class Payload(DataclassMixin):
 class Timeguard(DataclassMixin):
     header: bytes = csfield(Hex(Const(b"\xFA\xD4")))
     payload_size: int = csfield(
-        Rebuild(
-            Int16ul,
-            lambda ctx: len(DataclassStruct(Payload).build(ctx.payload))
-        )
+        Rebuild(Int16ul, lambda ctx: len(DataclassStruct(Payload).build(ctx.payload)))
     )
     message_id: int = csfield(Hex(Int32ul))
     payload_raw: bytes = csfield(
         Rebuild(
             Hex(Bytes(this.payload_size)),
-            lambda ctx: DataclassStruct(Payload).build(ctx.payload)
+            lambda ctx: DataclassStruct(Payload).build(ctx.payload),
         )
     )
     payload: Payload = csfield(RestreamData(this.payload_raw, DataclassStruct(Payload)))
     checksum: int = csfield(
-        Hex(
-            Checksum(
-                Int16ul,
-                lambda data: crc16_xmodem(data),
-                this.payload_raw
-            )
-        )
+        Hex(Checksum(Int16ul, lambda data: crc16_xmodem(data), this.payload_raw))
     )
 
     footer: bytes = csfield(Hex(Const(b"\x2D\xDF")))
 
     def is_from_server(self) -> bool:
-        return self.payload.message_flags & MessageFlags.IS_FROM_SERVER == MessageFlags.IS_FROM_SERVER
+        return (
+            self.payload.message_flags & MessageFlags.IS_FROM_SERVER
+            == MessageFlags.IS_FROM_SERVER
+        )
 
-    def prepare(message_type: MessageType, message_flags: MessageFlags, device_id: int, message_id: int = 0xFFFFFFFF,
-                payload_seq: typing.Optional[int] = None, payload_unknown=0x000000, **payload_params_kwargs) -> 'Timeguard':
+    def prepare(
+        message_type: MessageType,
+        message_flags: MessageFlags,
+        device_id: int,
+        message_id: int = 0xFFFFFFFF,
+        payload_seq: typing.Optional[int] = None,
+        payload_unknown=0x000000,
+        **payload_params_kwargs,
+    ) -> "Timeguard":
         message_type_id = Payload.get_message_type_id(message_type, message_flags)
         payload_params_class = Payload.MESSAGE_TYPE_MAP.get(message_type_id)
 
         if payload_params_class is None:
-            raise Exception('Unknown message_type_id={} ({} / {})'.format(message_type_id, message_type, message_flags))
+            raise Exception(
+                "Unknown message_type_id={} ({} / {})".format(
+                    message_type_id, message_type, message_flags
+                )
+            )
 
         payload_params = payload_params_class(**payload_params_kwargs)
 
@@ -406,7 +448,7 @@ class Timeguard(DataclassMixin):
             seq=payload_seq,
             unknown=payload_unknown,
             device_id=device_id,
-            params=payload_params
+            params=payload_params,
         )
 
         return ret
