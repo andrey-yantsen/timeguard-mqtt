@@ -1,13 +1,25 @@
-FROM python:3.9-alpine
+FROM python:3.10-alpine AS builder
 
+RUN apk add curl \
+  && adduser -h /home/tg -D -u 1000 tg
+USER tg
+WORKDIR /home/tg/app
+ENV PATH=/home/tg/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1
+COPY --chown=tg:tg poetry.lock pyproject.toml /home/tg/app/
+RUN sh <(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs) -y \
+  && curl -sSL https://install.python-poetry.org | python -u - \
+  || cat /home/tg/app/poetry-installer-error-* \
+  && poetry config virtualenvs.in-project true \
+  && poetry install --only main --no-interaction --no-root --no-ansi
+
+FROM python:3.10-alpine
 RUN adduser -h /home/tg -D -u 1000 tg
 USER tg
 WORKDIR /home/tg/app
-ENV PATH=/home/tg/.poetry/bin:$PATH \
+ENV PATH=/home/tg/.local/bin:$PATH \
     PYTHONUNBUFFERED=1
-COPY poetry.lock pyproject.toml /home/tg/app/
-RUN python -c 'from urllib.request import urlopen; f = urlopen("https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py"); print(f.read().decode("utf-8"))' | python -u - \
-  && source $HOME/.poetry/env && poetry install --no-dev --no-interaction --no-root
-COPY . /home/tg/app/
+COPY --from=builder /home/tg/app /home/tg/app
+COPY --chown=tg:tg . /home/tg/app/
 EXPOSE 9997/udp
 ENTRYPOINT [ "poetry", "run", "timeguard-mqtt" ]
