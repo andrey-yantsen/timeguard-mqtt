@@ -8,7 +8,7 @@ from typing import Optional
 from dateutil.relativedelta import SU, relativedelta
 import paho.mqtt.client as mqtt
 
-from . import log, protocol
+from timeguard_mqtt import log, protocol
 
 
 class Mqtt:

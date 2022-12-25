@@ -5,9 +5,9 @@ import signal
 import sys
 import threading
 
-from . import log
-from .mqtt import Mqtt
-from .protocol_handler import ProtocolHandler
+from timeguard_mqtt import log
+from timeguard_mqtt.mqtt import Mqtt
+from timeguard_mqtt.protocol_handler import ProtocolHandler
 
 
 def run():

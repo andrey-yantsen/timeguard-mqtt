@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple
 
 from arrow import Arrow
 
-from . import log, protocol
+from timeguard_mqtt import log, protocol
 
 
 class ProtocolHandler:
