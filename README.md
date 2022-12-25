@@ -60,13 +60,13 @@ docker run -d --name timeguard-mqtt \
   --restart unless-stopped \
   -p 9997:9997/udp \
   -e TZ=Europe/London \
-  ghcr.io/andrey-yantsen/timeguard-mqtt:main \
+  ghcr.io/andrey-yantsen/timeguard-mqtt:latest \
   --mode fallback \
   --debug \
   --mask
 ```
 
-The options `--debug` and `--mask` are optional, but at the current stage there's now reasons to run the program 
+The options `--debug` and `--mask` are optional, but at the current stage there's now reasons to run the program
 without them. `--mode fallback` is optional too, but it's highly recommended to run the program with it — in this case
 your timeswitch will continue to function in case of unexpected issues with your internet connection.
 
@@ -129,7 +129,7 @@ To enable MQTT-communication use the following options:
 * `--mqtt-username`
 * `--mqtt-password`
 
-If you want to enable auto-discovery for home-assistant, you also need to pass the root discovery topic using 
+If you want to enable auto-discovery for home-assistant, you also need to pass the root discovery topic using
 `--homeassistant-discovery`. If your home-assistant's MQTT configuration doesn't use the standard status topic of `homeassistant/status`, pass your custom one with `--homeassistant-status-topic`.
 
 After that you will see the following set of topics, for each device:
