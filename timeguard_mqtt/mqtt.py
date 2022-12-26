@@ -75,6 +75,9 @@ class Mqtt:
 
         self.client.connect_async(self.args.mqtt_host, self.args.mqtt_port)
         self.client.loop_start()
+
+        self.client.on_disconnect = self.on_disconnect
+
         while not self._stop:
             try:
                 tg_data: protocol.Timeguard = self.network_events_queue.get_nowait()
@@ -100,6 +103,11 @@ class Mqtt:
 
         self.client.disconnect()
         self.client.loop_stop()
+
+    def on_disconnect(self, client: mqtt.Client, userdata, rc):
+        if rc != mqtt.MQTT_ERR_SUCCESS:
+            log.warning("Unexpected MQTT disconnection. Will auto-reconnect.")
+            client.connect_async(self.args.mqtt_host, self.args.mqtt_port)
 
     def report_offline(self, topic: str):
         self.client.publish(topic, payload="offline", retain=True)
@@ -453,6 +461,7 @@ class Mqtt:
         return self.topic("{}".format(self.format_device(device_id)))
 
     def on_connect(self, client: mqtt.Client, userdata, flags, rc):
+        log.info("MQTT connection established.")
         if self.args.homeassistant_discovery:
             client.subscribe(self.args.homeassistant_status_topic)
         client.publish(self.topic("lwt"), payload="online", qos=1)
