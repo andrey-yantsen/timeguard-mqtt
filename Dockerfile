@@ -7,8 +7,9 @@ WORKDIR /home/tg/app
 ENV PATH=/home/tg/.local/bin:$PATH \
     PYTHONUNBUFFERED=1
 COPY --chown=tg:tg poetry.lock pyproject.toml /home/tg/app/
-RUN python3 -m pip install --user pipx \
-  && pipx install poetry \
+RUN sh <(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs) -y \
+  && curl -sSL https://install.python-poetry.org | python -u - \
+  || cat /home/tg/app/poetry-installer-error-* \
   && poetry config virtualenvs.in-project true \
   && poetry install --only main --no-interaction --no-root --no-ansi
 
