@@ -1,6 +1,6 @@
 FROM python:3.10-alpine AS builder
 
-RUN apk add curl \
+RUN apk add build-base libffi-dev curl \
   && adduser -h /home/tg -D -u 1000 tg
 USER tg
 WORKDIR /home/tg/app
