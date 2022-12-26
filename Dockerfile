@@ -22,4 +22,4 @@ ENV PATH=/home/tg/.local/bin:$PATH \
 COPY --from=builder /home/tg/app /home/tg/app
 COPY --chown=tg:tg . /home/tg/app/
 EXPOSE 9997/udp
-ENTRYPOINT [ "poetry", "run", "timeguard-mqtt" ]
+ENTRYPOINT [ ".venv/bin/python3", "-m", "timeguard_mqtt.cli" ]
