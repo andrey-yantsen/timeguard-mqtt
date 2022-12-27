@@ -462,6 +462,12 @@ class Mqtt:
 
     def on_connect(self, client: mqtt.Client, userdata, flags, rc):
         log.info("MQTT connection established.")
+
+        for device_id in self._device_state.keys():
+            self.setup_device(device_id)
+            if self.args.homeassistant_discovery:
+                self.setup_hass(device_id)
+
         if self.args.homeassistant_discovery:
             client.subscribe(self.args.homeassistant_status_topic)
         client.publish(self.topic("lwt"), payload="online", qos=1)
