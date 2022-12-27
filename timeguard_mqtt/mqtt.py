@@ -305,8 +305,6 @@ class Mqtt:
                     "schedules": {},
                 }
                 self.setup_device(device_id)
-                if self.args.homeassistant_discovery:
-                    self.setup_hass(device_id)
 
             self._device_state[device_id]["last_command"] = time()
 
@@ -348,6 +346,9 @@ class Mqtt:
 
     def setup_device(self, device_id: int):
         self.client.subscribe(self.device_topic(device_id, "+/set"))
+
+        if self.args.homeassistant_discovery:
+            self.setup_hass(device_id)
 
     def setup_hass(self, device_id: int):
         self.configure_hass_sensor(
@@ -465,8 +466,6 @@ class Mqtt:
 
         for device_id in self._device_state.keys():
             self.setup_device(device_id)
-            if self.args.homeassistant_discovery:
-                self.setup_hass(device_id)
 
         if self.args.homeassistant_discovery:
             client.subscribe(self.args.homeassistant_status_topic)
