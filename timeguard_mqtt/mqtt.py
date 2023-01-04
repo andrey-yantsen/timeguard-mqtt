@@ -426,9 +426,7 @@ class Mqtt:
                         },
                     ],
                     "availability_mode": "all",
-                    "name": "TimeGuard time-switch #{:08X} {}".format(
-                        int(device_id), name
-                    ),
+                    "name": "{} {}".format(device["name"], name),
                     "state_topic": "~/{}".format(sensor_id),
                     "device": device,
                 }
