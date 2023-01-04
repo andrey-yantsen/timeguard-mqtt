@@ -215,6 +215,10 @@ class Mqtt:
         self.update_device_state(device_id, "code_version", code_version)
         self.report_state(device_id, "code_version")
 
+        # Re-announce all the sensors after code_version is received
+        if self.args.homeassistant_discovery:
+            self.setup_hass(device_id)
+
     def update_active_schedule(self, device_id: int):
         if not self.has_parameter(device_id, "active_schedule_id"):
             return
@@ -357,7 +361,6 @@ class Mqtt:
         self.configure_hass_sensor(
             device_id, "sensor", "boost_duration_left", "Boost left"
         )
-        self.configure_hass_sensor(device_id, "sensor", "code_version", "Code version")
         self.configure_hass_sensor(
             device_id, "binary_sensor", "switch_state", "Switch state"
         )
@@ -394,6 +397,24 @@ class Mqtt:
             options=list(self.WORK_MODE_MAP.values()),
         )
 
+    def get_device_parameter(self, device_id: int, parameter: str, default=None) -> any:
+        return (
+            self._device_state.get(device_id, {})
+            .get("parameters", {})
+            .get("code_version", default)
+        )
+
+    def get_device_version(self, device_id: int) -> Optional[tuple[str, str]]:
+        if code_version := self.get_device_parameter(device_id, "code_version"):
+            match code_version[0:5]:
+                case "41917":
+                    return ("NTTWiFi", code_version[5:])
+
+                case "41901":
+                    return ("FTSWiFi", code_version[5:])
+
+        return None
+
     def configure_hass_sensor(
         self, device_id: int, sensor_type: str, sensor_id: str, name: str, **kwargs
     ):
@@ -402,6 +423,11 @@ class Mqtt:
             "manufacturer": "Timeguard",
             "name": "Timeguard Timeswitch {}".format(self.format_device(device_id)),
         }
+
+        if device_version := self.get_device_type(device_id):
+            device["model"] = device_version[0]
+            device["sw_version"] = device_version[1]
+
         self.client.publish(
             self.hass_topic(
                 "{}/{}/config".format(
