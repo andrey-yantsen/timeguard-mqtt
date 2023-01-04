@@ -263,6 +263,7 @@ class Mqtt:
                     "Active schedule",
                     command_topic="~/active_schedule/set",
                     options=schedules,
+                    entity_category="config",
                 )
 
             if self.has_parameter(device_id, "active_schedule_id"):
@@ -357,8 +358,15 @@ class Mqtt:
 
     def setup_hass(self, device_id: int):
         self.configure_hass_sensor(
-            device_id, "sensor", "uptime", "Uptime", unit_of_measurement="s"
+            device_id,
+            "sensor",
+            "uptime",
+            "Uptime",
+            unit_of_measurement="s",
+            enabled_by_default=False,
+            entity_category="diagnostic",
         )
+
         self.configure_hass_sensor(
             device_id, "sensor", "boost_duration_left", "Boost left"
         )
@@ -368,6 +376,7 @@ class Mqtt:
         self.configure_hass_sensor(
             device_id, "binary_sensor", "load_detected", "Load detected"
         )
+
         self.configure_hass_sensor(
             device_id,
             "binary_sensor",
@@ -396,6 +405,7 @@ class Mqtt:
             "Work mode",
             command_topic="~/work_mode/set",
             options=list(self.WORK_MODE_MAP.values()),
+            entity_category="config",
         )
 
     def get_device_parameter(self, device_id: int, parameter: str, default=None) -> any:
