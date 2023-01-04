@@ -255,14 +255,15 @@ class Mqtt:
                 if schedule.name:
                     schedules += [self.get_schedule_name(device_id, i)]
 
-            self.configure_hass_sensor(
-                device_id,
-                "select",
-                "active_schedule",
-                "Active schedule",
-                command_topic="~/active_schedule/set",
-                options=schedules,
-            )
+            if self.args.homeassistant_discovery:
+                self.configure_hass_sensor(
+                    device_id,
+                    "select",
+                    "active_schedule",
+                    "Active schedule",
+                    command_topic="~/active_schedule/set",
+                    options=schedules,
+                )
 
             if self.has_parameter(device_id, "active_schedule_id"):
                 self.update_active_schedule(device_id)
