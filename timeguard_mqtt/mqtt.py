@@ -228,7 +228,7 @@ class Mqtt:
             "active_schedule",
             self.get_schedule_name(
                 device_id,
-                self._device_state[device_id]["parameters"]["active_schedule_id"],
+                self.get_device_parameter(device_id, "active_schedule_id"),
             ),
         )
 
