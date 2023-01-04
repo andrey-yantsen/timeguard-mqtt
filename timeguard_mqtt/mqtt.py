@@ -414,8 +414,7 @@ class Mqtt:
                     "unique_id": self.discovery_unique_id(device_id, sensor_id),
                     "availability": [
                         {
-                            # `~` isn't working here, https://github.com/home-assistant/core/issues/53252
-                            "topic": self.device_topic(device_id, "lwt"),
+                            "topic": "~/lwt",
                             "payload_available": "online",
                             "payload_not_available": "offline",
                         },
