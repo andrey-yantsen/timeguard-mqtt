@@ -381,7 +381,7 @@ class Mqtt:
             device_id,
             "binary_sensor",
             "load_was_detected_previously",
-            "Load was detected prevously",
+            "Load was detected previously",
         )
         self.configure_hass_sensor(
             device_id,
@@ -389,6 +389,7 @@ class Mqtt:
             "advance_mode",
             "Advance mode",
             command_topic="~/advance_mode/set",
+            entity_category="config",
         )
         self.configure_hass_sensor(
             device_id,
@@ -435,7 +436,7 @@ class Mqtt:
             "name": "Timeguard Timeswitch {}".format(self.format_device(device_id)),
         }
 
-        if device_version := self.get_device_type(device_id):
+        if device_version := self.get_device_version(device_id):
             device["model"] = device_version[0]
             device["sw_version"] = device_version[1]
 
