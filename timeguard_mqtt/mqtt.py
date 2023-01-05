@@ -413,7 +413,7 @@ class Mqtt:
         return (
             self._device_state.get(device_id, {})
             .get("parameters", {})
-            .get("code_version", default)
+            .get(parameter, default)
         )
 
     def get_device_version(self, device_id: int) -> Optional[tuple[str, str]]:
