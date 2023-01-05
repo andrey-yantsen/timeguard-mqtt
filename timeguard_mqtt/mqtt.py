@@ -389,7 +389,6 @@ class Mqtt:
             "advance_mode",
             "Advance mode",
             command_topic="~/advance_mode/set",
-            entity_category="config",
         )
         self.configure_hass_sensor(
             device_id,
