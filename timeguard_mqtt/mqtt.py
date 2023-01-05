@@ -344,7 +344,7 @@ class Mqtt:
     def has_parameter(self, device_id: int, parameter: str) -> bool:
         return parameter in self._device_state[device_id]["parameters"]
 
-    def update_device_state(self, device_id: int, parameter: str, value: str):
+    def update_device_state(self, device_id: int, parameter: str, value: any):
         self._device_state[device_id]["parameters"][parameter] = value
 
     def topic(self, topic: str) -> str:
