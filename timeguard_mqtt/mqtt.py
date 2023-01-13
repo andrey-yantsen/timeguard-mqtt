@@ -365,6 +365,7 @@ class Mqtt:
             unit_of_measurement="s",
             enabled_by_default=False,
             entity_category="diagnostic",
+            device_class="duration",
         )
 
         self.configure_hass_sensor(
