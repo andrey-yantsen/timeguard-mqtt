@@ -107,14 +107,14 @@ extras = ["arrow", "cloudpickle", "enum34", "lz4", "numpy", "ruamel.yaml"]
 
 [[package]]
 name = "construct-typing"
-version = "0.5.5"
+version = "0.5.6"
 description = "Extension for the python package 'construct' that adds typing features"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "construct-typing-0.5.5.tar.gz", hash = "sha256:29d1a07df539ae096bd1388ad7f58714d229a303047425d3830b282d8b154572"},
-    {file = "construct_typing-0.5.5-py3-none-any.whl", hash = "sha256:bfce2fa170373abe782c2ebaa7f52e14e8f7863a437b7ab63bf74287f922a655"},
+    {file = "construct-typing-0.5.6.tar.gz", hash = "sha256:0dc501351cd6b308f15ec54e5fe7c0fbc07cc1530a1b77b4303062a0a93c1297"},
+    {file = "construct_typing-0.5.6-py3-none-any.whl", hash = "sha256:39c948329e880564e33521cba497b21b07967c465b9c9037d6334e2cffa1ced9"},
 ]
 
 [package.dependencies]
@@ -257,4 +257,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "468f6fceecfc009007ab9ffe93d87c66c75045a0e3aa6efddb6a142eb79b716a"
+content-hash = "b19298ffe4a309080b916f8d67588aa6646867bbd7090175b943ff028b830149"
