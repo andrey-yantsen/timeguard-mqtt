@@ -9,6 +9,17 @@ It is currently in the early stages of development, contributions are always wel
 
 **USE IT AT YOUR OWN RISK.**
 
+## Project status
+
+The device I was using for controlling the boiler (NTTWIFI) has died in July 2023,
+about two years after I started using it. I can't guarantee that the fault
+wasn't caused by the use of this project.
+
+Since I don't have any other devices to test the project with, I'm not going to
+continue the development, and it will be archived.
+
+Feel free to fork and update to your wishes.
+
 ## Legal Disclaimer
 
 This software is un-official and is not endorsed or associated with Timeguard Limited in any way shape or form.
